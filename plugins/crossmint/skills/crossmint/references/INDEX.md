@@ -54,7 +54,8 @@ End-to-end: create a user wallet on EVM, authorize an agent as a delegated signe
 | `wallet-quickstart-node.md` | Building a Node backend that creates and uses wallets via `@crossmint/wallets-sdk` |
 | `wallet-quickstart-react.md` | Building a React/Next.js frontend with `CrossmintProvider` + `useWallet()` |
 | `wallet-quickstart-rest.md` | Building from any language via REST. Includes wallet-locator formats (address, `email:user@example.com:evm:smart`, `userId:...:solana:mpc`, etc.) |
-| `react-sdk-get-started.md` | Concise React SDK install + provider snippet. Use when the user only needs the provider/hook setup, not the full quickstart |
+| `react-sdk-get-started.md` | Concise React SDK install + quick example (provider snippet + `useWallet` consumer) |
+| `react-providers.md` | **Reference** for `CrossmintProvider`, `CrossmintAuthProvider`, `CrossmintWalletProvider` — every prop they accept, including `createOnLogin`, `loginMethods`, embedded vs popup auth, `appearance` overrides |
 | `server-wallet-with-device-signer.md` | **Cross-device pattern.** Server creates the wallet with the user's device signer pre-registered → user signs on-device with NO OTP. Use when the user wants frictionless mobile/web signing without giving up server control of wallet creation |
 
 ### Wallet Actions (`wallet-actions/`)
@@ -64,7 +65,7 @@ The verbs you call on an existing wallet. Both SDK and REST shapes documented; s
 | File | Action |
 |---|---|
 | `wallet-actions/create-wallet.md` | All admin-signer variants (`server`, `email`, `external-wallet`, `passkey`, `phone`, `api-key`); supported chains; idempotency; get-or-create pattern |
-| `wallet-actions/check-balances.md` | `wallet.balances([...])` SDK + REST `/balances?tokens=` query; native vs ERC-20 response shape |
+| `wallet-actions/check-balances.md` | `wallet.balances([...])` and `wallet.nfts({ page, perPage })` — both token balances and NFT balances. Multi-platform tabs (React / Node / RN / Flutter / Swift / REST) |
 | `wallet-actions/transfer-tokens.md` | `wallet.send(recipient, token, amount)` SDK + REST `/tokens/{chain}:{token}/transfers`; token locator formats |
 | `wallet-actions/send-transaction.md` | Arbitrary contract calls — `EVMWallet.sendTransaction({ calls })` SDK + REST `/transactions`; for serialized transactions (e.g. Worldstore) and ABI-encoded calls |
 | `wallet-actions/sign-message.md` | EIP-191 (`signMessage`) and EIP-712 (`signTypedData`) for EVM. Three-step REST approval flow documented |
