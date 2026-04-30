@@ -1,15 +1,12 @@
-# crossmint — a Claude Code skill for Crossmint's agent payments stack
+# crossmint-skill
 
-A Claude Code plugin that lets your agent **actually use** Crossmint — not just read about it. Install once, hand it your Crossmint API key, and the agent can:
+A Claude Code plugin that turns Claude into a working Crossmint agent. Create wallets, send USDC, pay x402 endpoints — autonomously. Ships CLI tools (`wallet.sh`, `x402.sh`) so Claude calls a deterministic command instead of re-deriving SDK code each session.
 
-- Create a server agent wallet on Base and spend USDC autonomously
-- Pay x402 and MPP endpoints
-- Place Worldstore orders for Amazon / Shopify / flights
-- List, create, and delete agents, payment methods, and virtual cards
-- Walk you through the human-gated flows (saving a card in the PCI iframe, passkey enrollment, approving a spend mandate) and run every API call around the human step
-- Generate working Next.js / Express integration code when you're building an app
+```bash
+npx skills add Must-be-Ash/crossmint-skill
+```
 
-The skill ships **all 34 official Crossmint docs** as references plus runnable curl / Node recipes. The SKILL.md router decides — for every "can you…?" — whether the action is **AUTO** (agent does it), **WITH-USER** (you click, it calls), or **CODE-GEN** (it writes app code for you to deploy). No hallucinated endpoints; everything maps back to a shipped reference file.
+Then ask Claude: *"what's my balance?"* / *"pay this x402 url"* / *"send 0.10 USDC to 0x…"*.
 
 ## What you get
 
