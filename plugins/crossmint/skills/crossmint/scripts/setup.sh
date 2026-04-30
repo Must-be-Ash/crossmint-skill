@@ -69,6 +69,36 @@ if [[ -z "${SERVER_KEY}" && -z "${CLIENT_KEY}" ]]; then
   exit 2
 fi
 
+# Non-destructive merge: when re-running with --force, preserve any slot the user
+# didn't pass on this invocation. Prevents the 'overwrote my server key when I added
+# a client key' footgun.
+if [[ -f "${ENV_FILE}" && "${FORCE}" -eq 1 ]]; then
+  if [[ -z "${SERVER_KEY}" ]]; then
+    EXISTING_SERVER=$(grep ^CROSSMINT_SERVER_API_KEY= "${ENV_FILE}" 2>/dev/null | cut -d= -f2-)
+    # Fall back to legacy alias if the new field isn't there
+    if [[ -z "${EXISTING_SERVER}" ]]; then
+      EXISTING_LEGACY=$(grep ^CROSSMINT_API_KEY= "${ENV_FILE}" 2>/dev/null | cut -d= -f2-)
+      [[ "${EXISTING_LEGACY:0:3}" == "sk_" ]] && EXISTING_SERVER="${EXISTING_LEGACY}"
+    fi
+    [[ -n "${EXISTING_SERVER}" ]] && SERVER_KEY="${EXISTING_SERVER}" && \
+      echo "NOTE: preserving existing CROSSMINT_SERVER_API_KEY from ${ENV_FILE}" >&2
+  fi
+  if [[ -z "${CLIENT_KEY}" ]]; then
+    EXISTING_CLIENT=$(grep ^CROSSMINT_CLIENT_API_KEY= "${ENV_FILE}" 2>/dev/null | cut -d= -f2-)
+    if [[ -z "${EXISTING_CLIENT}" ]]; then
+      EXISTING_LEGACY=$(grep ^CROSSMINT_API_KEY= "${ENV_FILE}" 2>/dev/null | cut -d= -f2-)
+      [[ "${EXISTING_LEGACY:0:3}" == "ck_" ]] && EXISTING_CLIENT="${EXISTING_LEGACY}"
+    fi
+    [[ -n "${EXISTING_CLIENT}" ]] && CLIENT_KEY="${EXISTING_CLIENT}" && \
+      echo "NOTE: preserving existing CROSSMINT_CLIENT_API_KEY from ${ENV_FILE}" >&2
+  fi
+  if [[ -z "${SIGNER_SECRET}" ]]; then
+    EXISTING_SECRET=$(grep ^CROSSMINT_SIGNER_SECRET= "${ENV_FILE}" 2>/dev/null | cut -d= -f2-)
+    [[ -n "${EXISTING_SECRET}" ]] && SIGNER_SECRET="${EXISTING_SECRET}" && \
+      echo "NOTE: preserving existing CROSSMINT_SIGNER_SECRET (keeps wallet address stable)" >&2
+  fi
+fi
+
 # Validate prefixes
 [[ -n "${SERVER_KEY}" && "${SERVER_KEY:0:3}" != "sk_" ]] && { echo "ERROR: --server-key must start with sk_ (got '${SERVER_KEY:0:5}...')." >&2; exit 2; }
 [[ -n "${CLIENT_KEY}" && "${CLIENT_KEY:0:3}" != "ck_" ]] && { echo "ERROR: --client-key must start with ck_ (got '${CLIENT_KEY:0:5}...')." >&2; exit 2; }
