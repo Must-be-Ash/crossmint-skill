@@ -385,5 +385,5 @@ curl -s -X POST \
 
 - **No mutating call without explicit user confirmation of the exact action.** Show them the destination, amount, and the curl command you're about to run, then wait.
 - **Always check `jq` is available** before piping — fall back to raw JSON if not (`command -v jq >/dev/null || echo 'install jq for pretty output'`).
-- **Never echo `$CROSSMINT_API_KEY` or `$CROSSMINT_SIGNER_SECRET` to the conversation.** They live in `~/.config/crossmint/.env` precisely so the user never has to re-type them.
+- **Never echo `$CROSSMINT_SERVER_API_KEY`, `$CROSSMINT_CLIENT_API_KEY`, or `$CROSSMINT_SIGNER_SECRET` to the conversation.** They live in `~/.config/crossmint/.env` precisely so the user never has to re-type them.
 - **One-shot env loading.** Use `( set -a; source ...; set +a; <cmd> )` so env vars don't leak into later, unrelated Bash calls in the same session.
