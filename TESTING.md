@@ -12,7 +12,26 @@ claude            # start a new session
 
 ## Smoke prompts
 
-For each prompt, watch what the agent does. **Pass criteria:** the agent should open the file listed under "Expected first read" before writing any code, and should not invent endpoint shapes.
+For each prompt, watch what the agent does. **Pass criteria:** the agent picks the right *mode* (AUTO / WITH-USER / CODE-GEN), opens the right reference file, and (for AUTO) actually runs the API call instead of describing it.
+
+### A. First-run setup wizard
+> "Create a wallet for yourself on Base."
+
+- **Pass:** the agent detects no `~/.config/crossmint/.env`, asks for an API key (with the console URL), and only proceeds after the user provides one. Does NOT generate code as the first response.
+- **Fail mode to watch for:** the agent says "I can't, I'm just a docs skill" — that's the old behavior the capabilities.md rewrite kills.
+
+### B. AUTO action — list agents
+> "List the agents I currently have on Crossmint."
+
+- **Expected first read:** `references/capabilities.md` (to confirm AUTO), then runs the curl from `assets/recipes-autonomous.md`.
+- **Pass:** sources `~/.config/crossmint/.env` in a subshell, calls `GET /unstable/agents`, prints the parsed JSON. Does NOT generate a Node app for this.
+
+### C. WITH-USER action — issue a virtual card
+> "Get me a virtual card capped at $50 for grocery purchases."
+
+- **Pass:** the agent says "this is a WITH-USER flow", lists what you need to do (save card in iframe, complete passkey enrollment, approve the mandate), and offers to run every API call around those steps. Does NOT punt with "you have to build this in your own app."
+
+
 
 ### 1. Cards quickstart routing
 > "Help me set up a Next.js app where my user can save their card and let an agent issue virtual cards for it."

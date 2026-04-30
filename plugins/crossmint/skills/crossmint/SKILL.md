@@ -1,82 +1,138 @@
 ---
 name: crossmint
-description: Build agents that pay using Crossmint — virtual credit cards (PCI-vaulted, network-enforced spend limits via Visa VIC / Mastercard Agent Pay), stablecoin wallets on Base/EVM with delegated agent signers, x402 and MPP pay-per-call endpoints, and Worldstore commerce for buying from Amazon, Shopify, and airlines via a single API. Use when the user asks how to issue a virtual card for an agent, give an agent a wallet, authorize an agent as a signer, pay an x402-protected or MPP-protected endpoint, place an order on behalf of a user, set up agentic enrollment, manage payment methods, or move a Crossmint integration to production. Routes the agent to the exact reference file and recipe needed — never invents endpoints or fields.
+description: Use Crossmint to actually pay for things, get a wallet, or issue a virtual card — not just talk about it. The agent itself can create a server agent wallet on Base, list/manage agents and payment methods, place Worldstore orders for Amazon/Shopify/flights, and pay x402 or MPP endpoints autonomously once the user provides a Crossmint API key (saved to ~/.config/crossmint/.env). For flows that need a human (saving a card in the PCI iframe, passkey enrollment, approving a spend mandate), the agent guides the user step-by-step and runs every API call around the human gate. Also generates working Next.js / Express integration code when the user is building an app, never inventing endpoints. Use whenever the user asks to "get a wallet", "create a virtual card", "pay this endpoint", "buy something", "give my agent money", "set up Crossmint", or any related ask. Ships all 34 official docs as references plus runnable curl/Node recipes.
 ---
 
 # Crossmint
 
-## Overview
+Crossmint gives agents two payment primitives — **virtual cards** (traditional web: Amazon, Shopify, SaaS) and **stablecoin wallets** (agentic web: x402, MPP, USDC on Base). This skill turns the docs into action: the agent runs Crossmint API calls inline using the user's API key, walks the user through the human-gated parts (passkey, card iframe), and writes integration code for app-building tasks.
 
-Crossmint provides two payment primitives for agents — **cards** (for the traditional web: Amazon, Shopify, SaaS checkouts) and **stablecoin wallets** (for the agentic web: x402, MPP, machine-to-machine settlement). This skill ships the complete official docs and tells you which file to read for the task at hand.
+> **Core rule**: when the user asks "can you do X?", **answer with the mode** — AUTO / WITH-USER / CODE-GEN — and the next concrete step. Never say "I'm just a docs skill." Read `references/capabilities.md` for the full mode mapping.
 
-**Always**: open `references/INDEX.md` first when in doubt. It's a one-file lookup table that maps any task to the right reference.
+---
 
-## What this skill is for
+## Step 0 — first-run setup (do this before any AUTO or WITH-USER action)
 
-- Issuing virtual cards for an agent with spending mandates (amount, merchant, expiry)
-- Creating user wallets and server agent wallets on EVM (Base) or Solana
-- Authorizing an agent as a delegated signer with scoped permissions
-- Paying x402-protected endpoints (the @x402/core flow)
-- Paying MPP endpoints (the mppx/client flow)
-- Placing Worldstore orders (Amazon, Shopify, flights — Crossmint is Merchant of Record)
-- Managing agentic enrollments, payment methods, agents (CRUD via the Agentic Payments API)
-- Moving a staging integration to production (project, keys, scopes)
-- Customizing the Crossmint UI components
+The agent runs API calls using credentials at `~/.config/crossmint/.env`. **Detect first run** by checking if that file exists:
 
-## What this skill is NOT for
+```bash
+[ -f "${HOME}/.config/crossmint/.env" ] && grep -q "^SETUP_COMPLETE=true$" "${HOME}/.config/crossmint/.env" && echo READY || echo SETUP_NEEDED
+```
 
-- Inventing endpoint shapes, field names, or scopes that aren't in `references/`. If a fact isn't in a reference file, fetch the live docs at `https://docs.crossmint.com/llms.txt` rather than guessing.
-- Acting as a hosted CLI / SDK on the user's behalf — this skill is knowledge + recipes, not a payment client. The user runs the code; you write it for them based on the references.
-- Non-Crossmint payment providers.
+- **READY**: skip to the user's request silently. **Do NOT announce "setup is complete"** — the user knows.
+- **SETUP_NEEDED**: tell the user what you need, and only when they confirm, run setup.
 
-## Prerequisites
+### Setup wizard flow
 
-Before writing any Crossmint integration code, confirm:
+When setup is needed AND the user is asking for something AUTO/WITH-USER:
 
-1. **Crossmint project + API key.** Staging at `https://staging.crossmint.com/console`, production at `https://www.crossmint.com/console`. The user creates the project; you ask them which environment they want to start in (default: staging).
-2. **API key scopes** match what the flow needs. Each `references/api/*.md` file lists the required scope at the top. For Worldstore in production: `orders.create`, `orders.ws.search`, `orders.ws.create`, `orders.read`, `wallets:transactions.create`.
-3. **Auth provider** for cards flows. The cards quickstart uses Stytch as an example; any JWT-issuing auth provider works.
-4. **For wallets**: a `CROSSMINT_SIGNER_SECRET` (format: `xmsk1_<64-hex>`) — generated client-side, stored in env. See `references/stablecoin-wallets-quickstart.md`.
+1. Tell them: "I can do that, but I need a Crossmint API key first. Get one (free) at https://staging.crossmint.com/console/projects/apiKeys — pick **server-side** key, leave all scopes enabled. Paste it here when ready, or say 'skip' if you only want code-gen help."
+2. **Locate the scripts.** When the skill is installed via `npx skills add`, scripts live somewhere under `~/.claude/plugins/`. Resolve the path once:
+   ```bash
+   SKILL_ROOT=$(find "${HOME}/.claude" -type d -path '*/skills/crossmint' 2>/dev/null | head -1)
+   echo "SKILL_ROOT=${SKILL_ROOT}"
+   ```
+3. When they paste a key (looks like `sk_staging_...` or `sk_production_...`), run:
+   ```bash
+   bash "${SKILL_ROOT}/scripts/setup.sh" --api-key "<key>" --env staging
+   ```
+   For production keys, pass `--env production`. The script auto-generates a `CROSSMINT_SIGNER_SECRET` (xmsk1_…) and writes everything to `~/.config/crossmint/.env` with mode 600.
+4. Verify the key works:
+   ```bash
+   bash "${SKILL_ROOT}/scripts/doctor.sh"
+   ```
+   Doctor probes `GET /unstable/agents`. On 200 → proceed. On 401/403 → tell the user the key was rejected and ask them to confirm the environment + scopes.
+5. Once doctor passes, **proceed with the original ask immediately**. Don't ask "what next?" — they already told you.
 
-If the user hasn't set these up, walk them through it before writing integration code. Never put a real API key in a code sample — use `process.env.CROSSMINT_API_KEY`.
+### Loading config inside any later command
 
-## Routing — pick the branch first
+Every snippet in `assets/recipes-autonomous.md` starts with:
+```bash
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; <command using env vars> )
+```
+This scopes the secrets to a subshell so they don't leak.
 
-Triage the user's request into one of these branches, then read the listed file before answering. **Multi-intent requests read multiple branches in parallel.**
+### When the user has not done setup yet but asks a CODE-GEN question
 
-| User intent | Branch | First file |
-|---|---|---|
-| "credit card", "virtual card", "Amazon purchase via card", "checkout form fill" | **Cards** | `references/cards-quickstart.md` |
-| "wallet", "USDC", "stablecoin", "on-chain", "Base", "EVM", "Solana" | **Wallets** | `references/stablecoin-wallets-quickstart.md` |
-| "x402", "402 payment", "pay-per-call API" | **x402** | `references/x402.md` |
-| "MPP", "machine payment protocol" | **MPP** | `references/mpp.md` |
-| "buy on Amazon / Shopify", "ship a product", "1B products", "Worldstore", "flights" | **Commerce** | `references/inventory.md` |
-| "browser checkout", "fill a website checkout", "Stagehand", "Browser Use" | **Browser** | `references/browser-checkout.md` |
-| "production", "live keys", "go live", "switch from staging" | **Production** | `references/moving-to-production.md` |
-| Direct API question (list / create / delete / get) | **API** | `references/INDEX.md` then `references/api/*.md` |
-| "what is Crossmint?", "compare cards vs wallets" | **Conceptual** | `references/overview.md` then `references/how-agents-pay.md` |
+CODE-GEN tasks (e.g. "write me a Next.js card integration") **do not require Step 0** — go ahead and generate code. Mention setup only if they later want to test it autonomously.
+
+---
+
+## What the agent can do — the three modes
+
+Read `references/capabilities.md` for the full per-ask table. Summary:
+
+- **AUTO** — agent does it autonomously after Step 0. Examples: list agents, create a server agent wallet, place a Worldstore order, pay an x402 endpoint, get virtual card credentials. Recipes in `assets/recipes-autonomous.md`.
+- **WITH-USER** — agent + user together; user does the UI step (saving a card, passkey approval). Agent runs every API call around the human gate. Examples: end-to-end virtual card issuance, agent signer authorization on a user wallet, onramp.
+- **CODE-GEN** — agent writes app code for the user's product (the user's app is the long-lived agent). Examples: full Next.js card flow, Express server signer, React `CrossmintWalletProvider` setup. Recipes in `assets/recipes-cards.md`, `recipes-wallets.md`, `recipes-x402.md`, `recipes-worldstore.md`.
+
+**Default to the most-actionable mode.** If "create a virtual card for me" can be done WITH-USER, offer that path first; only fall back to CODE-GEN if the user clarifies they're building an app.
+
+---
+
+## Routing — pick the doc branch
+
+After resolving mode, drill into the right reference. Multi-intent requests read multiple branches in parallel.
+
+| User intent | First file |
+|---|---|
+| "credit card", "virtual card", "Amazon purchase via card", "checkout form fill" | `references/cards-quickstart.md` |
+| "wallet", "USDC", "stablecoin", "on-chain", "Base", "EVM", "Solana" | `references/stablecoin-wallets-quickstart.md` |
+| "x402", "402 payment", "pay-per-call API" | `references/x402.md` |
+| "MPP", "machine payment protocol" | `references/mpp.md` |
+| "buy on Amazon / Shopify", "ship a product", "Worldstore", "flights" | `references/inventory.md` |
+| "browser checkout", "fill a website checkout", "Stagehand", "Browser Use" | `references/browser-checkout.md` |
+| "production", "live keys", "go live" | `references/moving-to-production.md` |
+| Direct API question (list/create/delete/get) | `references/INDEX.md` then `references/api/*.md` |
+| "what is Crossmint?", "compare cards vs wallets" | `references/overview.md` then `references/how-agents-pay.md` |
+
+When unsure, open `references/INDEX.md` — it's the one-file lookup over all 34 references.
+
+---
+
+## Safety — confirm before spending
+
+For any action that moves real USDC, charges a card, or creates a real order, **show the user the exact action first** (destination, amount, endpoint) and wait for explicit "yes" before submitting. The agent's autonomy stops at unconfirmed mutations.
+
+Read-only calls (list agents, list payment methods, get order status) need no confirmation — run them freely.
+
+---
 
 ## How to read references
 
-1. **Start with `references/INDEX.md`** — it's the table of every reference file with a one-line summary. Open it first if you're not 100% sure which file you need.
-2. **Open at most 2–3 reference files per task.** Each is short and self-contained. Don't read everything.
-3. **For multi-step flows** (e.g. cards quickstart), follow the order embedded in the quickstart: `register-agent.md` → `save-card.md` → `enroll-card.md` → `create-virtual-card.md` → `using-virtual-cards.md`.
-4. **API endpoint refs** (`references/api/*.md`) live separately because they're terser. Read the conceptual guide first, then the endpoint ref for the exact request/response shape.
+1. **`references/INDEX.md` first** when you're not 100% sure which file. Quick lookup over all 34.
+2. **`references/capabilities.md`** when the user asks "can you…?" — gives you the mode + next step.
+3. **At most 2–3 reference files per task.** Each is short.
+4. **Multi-step flows** follow the embedded order: e.g. cards = `register-agent.md` → `save-card.md` → `enroll-card.md` → `create-virtual-card.md` → `using-virtual-cards.md`.
+5. **API endpoint refs** (`references/api/*.md`) are terser — read the conceptual guide first, then the endpoint ref for the exact request/response shape.
+
+---
 
 ## Recipes
 
-`assets/` contains copy-pasteable curl + Node snippets for the most common ops, drawn directly from the reference docs:
+- `assets/recipes-autonomous.md` — **runnable** curl/Node snippets the agent invokes inline (uses `~/.config/crossmint/.env`). For AUTO actions.
+- `assets/recipes-cards.md` — full cards integration: register agent → save card → enroll → create virtual card → fetch credentials. For CODE-GEN.
+- `assets/recipes-wallets.md` — create wallet → authorize agent signer → spend. For CODE-GEN.
+- `assets/recipes-x402.md` — `@x402/core` payment loop. For CODE-GEN and AUTO (variants).
+- `assets/recipes-worldstore.md` — Amazon order: create → sign+submit → poll. For CODE-GEN.
 
-- `assets/recipes-cards.md` — register agent → save card → enroll → create virtual card → fetch credentials
-- `assets/recipes-wallets.md` — create wallet → authorize agent signer → check balance → spend
-- `assets/recipes-x402.md` — install `@x402/core`, the GET-with-pay loop, error handling
-- `assets/recipes-worldstore.md` — Amazon search → create order → poll status → ship
+Always cite the reference file a snippet came from so the user can verify.
 
-Use these as starting points; adapt to the user's framework. **Always cite the reference file the snippet came from** so the user can verify.
+---
+
+## What this skill is NOT for
+
+- **Inventing endpoints.** If a fact isn't in `references/`, fetch the live docs at `https://docs.crossmint.com/llms.txt` rather than guessing.
+- **Holding a credit card in Claude's name.** Cards must be backed by a real human's Visa/Mastercard. The agent can spend USDC from a wallet it controls; it cannot issue a card to itself.
+- **Bypassing passkey / OTP / browser-iframe steps.** When the flow needs a human, the agent waits for them.
+- **Production calls without a production key.** Don't auto-promote a staging key; require a fresh one and re-run setup with `--env production`.
+
+---
 
 ## Output style
 
-- Write code the user can run as-is. Prefer Node + fetch (or curl) for portability; use `@crossmint/wallets-sdk` and `@crossmint/client-sdk-react-ui` when the user is in a React app.
-- For multi-step flows, show the sequence with numbered steps and label each step with the file it came from (e.g. "from `references/enroll-card.md`").
-- Always state which environment (staging vs production) the snippet targets.
-- Never invent. If the reference doesn't show a field, say "not documented in the shipped references — verify at docs.crossmint.com".
+- Lead with the **mode** (AUTO / WITH-USER / CODE-GEN) and the next concrete step.
+- Show the exact command before running mutations; wait for confirmation.
+- Cite the reference file every snippet came from.
+- State which environment (staging vs production) any code targets.
+- Never echo `$CROSSMINT_API_KEY` or `$CROSSMINT_SIGNER_SECRET` to the conversation — they live in `~/.config/crossmint/.env` so the user never has to re-type them.

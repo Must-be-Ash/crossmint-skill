@@ -4,6 +4,12 @@
 
 ---
 
+## Decide what mode the agent is in (read first when user asks "can you…?")
+
+| File | Read when |
+|---|---|
+| `capabilities.md` | User asks "can you create a wallet / virtual card / pay an endpoint?" — gives you the AUTO / WITH-USER / CODE-GEN mode + next step |
+
 ## Conceptual / start-here
 
 | File | Read when |
@@ -99,6 +105,29 @@ Terse request/response refs. Read the conceptual guide first, then come here for
 | `api/get-virtual-card.md` | GET | Get one order intent by ID |
 | `api/create-virtual-card.md` | POST | Issue a new order intent (virtual card); scope `order-intents.create` |
 | `api/get-virtual-card-credentials.md` | POST | Fetch PAN, expiry, CVC for an order intent (merchant-scoped); scope `order-intents.credentials` |
+
+---
+
+---
+
+## Recipes (in `assets/`)
+
+| File | Use for |
+|---|---|
+| `assets/recipes-autonomous.md` | **AUTO** mode — runnable curl/Node snippets the agent invokes inline using `~/.config/crossmint/.env` |
+| `assets/recipes-cards.md` | **CODE-GEN** for card integrations (register agent → save → enroll → virtual card → credentials) |
+| `assets/recipes-wallets.md` | **CODE-GEN** for wallet integrations (create user wallet, authorize agent signer, spend) |
+| `assets/recipes-x402.md` | x402 + MPP payment loops (works for both AUTO and CODE-GEN) |
+| `assets/recipes-worldstore.md` | Amazon order: create → sign + submit via wallet → poll status |
+
+---
+
+## Setup scripts (in `scripts/`)
+
+| Script | Purpose |
+|---|---|
+| `scripts/setup.sh` | First-run wizard. Writes `~/.config/crossmint/.env` with API key + auto-generated signer secret. Required before any AUTO action |
+| `scripts/doctor.sh` | Verifies the env file is valid and the API key reaches the configured environment |
 
 ---
 
