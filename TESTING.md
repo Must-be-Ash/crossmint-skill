@@ -18,8 +18,8 @@ For each prompt, watch what the agent does. **Pass criteria:** the agent should 
 > "Help me set up a Next.js app where my user can save their card and let an agent issue virtual cards for it."
 
 - **Expected first read:** `references/cards-quickstart.md`
-- **Then:** `references/register-agent.md`, `references/enroll-card.md`, `references/using-virtual-cards.md`
-- **Should warn:** `references/save-card.md` and `references/create-virtual-card.md` are stubs — fetch live docs before writing those steps.
+- **Then in order:** `references/register-agent.md` → `save-card.md` → `enroll-card.md` → `create-virtual-card.md` → `using-virtual-cards.md`
+- **Pass:** uses `CrossmintPaymentMethodManagement` for save, mentions the staging test card `4242 4242 4242 4242`, builds the order intent with `mandates: [{ type: "maxAmount", value: "100.00", details: { currency: "usd", period: "monthly" } }]`, and uses `OrderIntentVerification` for the passkey step.
 
 ### 2. Stablecoin wallet for end user
 > "Give every user that signs in to my app a wallet on Base."
@@ -68,10 +68,11 @@ For each prompt, watch what the agent does. **Pass criteria:** the agent should 
 
 - **Pass criteria:** the agent should refuse to invent the endpoint, point at `references/INDEX.md`, and tell the user that `super-permissions` is not in the shipped reference set. It should suggest checking `docs.crossmint.com/llms.txt`.
 
-### 10. Negative test — stub file
-> "Show me how to call the create-virtual-card endpoint."
+### 10. Mandate-currency negative test
+> "Issue a virtual card with a $100 weekly cap in CHF."
 
-- **Pass criteria:** the agent reads `references/api/create-virtual-card.md`, sees the stub warning, tells the user the doc is being repaired, and points at the live URL — does NOT guess the request body.
+- **Expected first read:** `references/api/create-virtual-card.md`
+- **Pass criteria:** the agent notes that `chf` is not in the supported currency enum (usd, eur, aud, gbp, jpy, sgd, hkd, krw, inr, vnd, cop) and asks the user to pick one — does NOT silently substitute or invent.
 
 ## What to fix when a prompt fails
 

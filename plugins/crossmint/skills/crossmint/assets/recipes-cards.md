@@ -44,9 +44,41 @@ Required scope on the API key: `agents.create` (see `references/api/create-agent
 
 ---
 
-## 2. Save a card
+## 2. Save a card (React, client-side only)
 
-> Stub — `references/save-card.md` is missing real content (source duplicate). Fetch the live snippet from `https://docs.crossmint.com/agents/payment-methods/cards/save-card` before writing this step. Do **not** invent the request shape.
+Source: `references/save-card.md`.
+
+Card data is collected by Crossmint's hosted UI — your backend never sees the PAN. Render the management component on a page where the user manages their payment methods.
+
+```tsx
+"use client";
+import { CrossmintProvider, CrossmintPaymentMethodManagement } from "@crossmint/client-sdk-react-ui";
+
+function App() {
+  return (
+    <CrossmintProvider apiKey={process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY!}>
+      <PaymentMethodsPage jwt={userJwt} />
+    </CrossmintProvider>
+  );
+}
+
+function PaymentMethodsPage({ jwt }: { jwt: string }) {
+  const handlePaymentMethodSelected = (paymentMethod: { paymentMethodId: string }) => {
+    // Persist paymentMethod.paymentMethodId on your user record.
+    // Apply strict access controls — never expose in client-side storage or logs.
+    console.log("Card saved:", paymentMethod.paymentMethodId);
+  };
+
+  return (
+    <CrossmintPaymentMethodManagement
+      jwt={jwt}
+      onPaymentMethodSelected={handlePaymentMethodSelected}
+    />
+  );
+}
+```
+
+Staging test card for the happy path: `4242 4242 4242 4242`, any future expiry, any 3-digit CVC. Full test-card matrix (issuer decline, OTP failure, ineligible card, etc.) lives in `references/save-card.md`.
 
 ---
 
@@ -85,12 +117,69 @@ Required scope: `payment-methods.create`.
 
 ## 4. Create a virtual card with spending mandates
 
-> Stub — `references/create-virtual-card.md` and `references/api/create-virtual-card.md` are missing real content (source duplicates). Fetch the live snippet from docs.crossmint.com before issuing virtual cards.
+Source: `references/create-virtual-card.md` and `references/api/create-virtual-card.md`.
 
-The flow returns an `orderIntentId` — persist it. Companion endpoints:
-- `api/get-virtual-card.md` — GET `/order-intents/{orderIntentId}` — read status
-- `api/list-virtual-cards.md` — GET `/order-intents` — list all
-- `api/get-virtual-card-credentials.md` — POST `/order-intents/{orderIntentId}/credentials` — fetch PAN/expiry/CVC
+A virtual card is an **order intent**. Mandates scope the spending: `maxAmount` (with currency + period), `description`, `consumer` (recipient email), and `prompt` (free-text rationale).
+
+### 4a. Create the order intent
+```typescript
+const BASE_URL = "https://staging.crossmint.com/api/unstable";
+
+const response = await fetch(`${BASE_URL}/order-intents`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-API-KEY": process.env.NEXT_PUBLIC_CROSSMINT_CLIENT_API_KEY!,
+    Authorization: `Bearer ${jwt}`,
+  },
+  body: JSON.stringify({
+    agentId,                                       // from step 1
+    payment: { paymentMethodId },                  // from step 3 (enrolled card)
+    mandates: [
+      {
+        type: "maxAmount",
+        value: "150.00",
+        details: { currency: "usd", period: "monthly" },
+      },
+      {
+        type: "description",
+        value: "Weekly grocery purchases",
+      },
+    ],
+  }),
+});
+
+const orderIntent = await response.json();
+// orderIntent.orderIntentId — persist it
+// orderIntent.phase — "requires-verification" or "active"
+```
+
+Required scope: `order-intents.create`. Supported `maxAmount.details.currency`: usd, eur, aud, gbp, jpy, sgd, hkd, krw, inr, vnd, cop. Supported `period`: weekly, monthly, yearly.
+
+### 4b. Authorize via passkey (only if phase is `requires-verification`)
+```tsx
+import { OrderIntentVerification } from "@crossmint/client-sdk-react-ui";
+
+function AuthorizeSpending({ orderIntent }: { orderIntent: any }) {
+  return (
+    <OrderIntentVerification
+      orderIntent={orderIntent}
+      onVerificationComplete={() => console.log("Virtual card is now active")}
+      onVerificationError={() => console.error("Spending authorization failed")}
+    />
+  );
+}
+```
+
+This step is **passkey-only** — no email code; the email verification was completed during enrollment. After `onVerificationComplete` fires, the phase moves to `active` and credentials can be fetched (step 5).
+
+### What to persist
+
+| Data | When |
+|---|---|
+| `orderIntentId` | Always — every later operation keys off it |
+| Merchant descriptor (`name`, `url`, `countryCode`) | When you'll repeatedly charge the same merchant — saves re-collecting it on every credential fetch |
+| Card credentials | Never — they're short-lived and merchant-scoped |
 
 ---
 

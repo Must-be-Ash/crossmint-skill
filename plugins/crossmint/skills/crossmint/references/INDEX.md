@@ -2,8 +2,6 @@
 
 > **One-file lookup.** Find the file you need, then open just that file. Don't read everything.
 
-Files marked **(stub)** are missing content (source doc was a duplicate). Fetch the live equivalent at `https://docs.crossmint.com/llms.txt` instead of guessing.
-
 ---
 
 ## Conceptual / start-here
@@ -21,9 +19,9 @@ End-to-end: a user logs in, saves their card, authorizes an agent, and gets back
 |---|---|---|
 | 0 | `cards-quickstart.md` | The full 15-minute walkthrough using the virtual-cards-quickstart reference app |
 | 1 | `register-agent.md` | Authenticate the user (JWT), create an `agentId` |
-| 2 | `save-card.md` **(stub)** | Mount Crossmint's PCI-vaulted card collector, store a `paymentMethodId` |
+| 2 | `save-card.md` | Mount Crossmint's PCI-vaulted card collector (`CrossmintPaymentMethodManagement`), store a `paymentMethodId`. Includes the staging test-card matrix |
 | 3 | `enroll-card.md` | One-time device-binding ceremony to authorize the saved card for agentic use |
-| 4 | `create-virtual-card.md` **(stub)** | Issue a virtual card with amount/merchant/expiry mandates |
+| 4 | `create-virtual-card.md` | Issue a virtual card (order intent) with `maxAmount` / `description` / `consumer` / `prompt` mandates; passkey verification via `OrderIntentVerification` |
 | 5 | `using-virtual-cards.md` | Fetch PAN, expiry, CVC for an active virtual card |
 | — | `customize-ui.md` | Brand the verification + spending-authorization modals |
 | — | `remove-cards.md` | Remove saved cards, delete agents, rotate virtual cards |
@@ -99,8 +97,8 @@ Terse request/response refs. Read the conceptual guide first, then come here for
 |---|---|---|
 | `api/list-virtual-cards.md` | GET | List all order intents |
 | `api/get-virtual-card.md` | GET | Get one order intent by ID |
-| `api/create-virtual-card.md` **(stub)** | POST | Issue a new order intent (virtual card) |
-| `api/get-virtual-card-credentials.md` | GET | Fetch PAN, expiry, CVC for an order intent |
+| `api/create-virtual-card.md` | POST | Issue a new order intent (virtual card); scope `order-intents.create` |
+| `api/get-virtual-card-credentials.md` | POST | Fetch PAN, expiry, CVC for an order intent (merchant-scoped); scope `order-intents.credentials` |
 
 ---
 

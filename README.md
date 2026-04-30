@@ -69,16 +69,6 @@ plugins/crossmint/skills/crossmint/
     └── recipes-worldstore.md
 ```
 
-## Known gaps (v0.1)
-
-Three reference files are stubs — the upstream `/docs` source folder contained byte-identical duplicates for these:
-
-- `references/save-card.md`
-- `references/create-virtual-card.md`
-- `references/api/create-virtual-card.md`
-
-Each stub contains the live URL to fetch from `docs.crossmint.com`. The skill will refuse to invent these flows. To repair: copy the real content from the live docs into the stub files and remove the warning header.
-
 ## Limitations
 
 - **Knowledge skill, not a CLI.** The agent writes code for you to run. It does not call Crossmint APIs on your behalf, so no key handling, no billing, no auth.

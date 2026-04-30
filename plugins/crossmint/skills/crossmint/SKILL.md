@@ -74,16 +74,6 @@ Triage the user's request into one of these branches, then read the listed file 
 
 Use these as starting points; adapt to the user's framework. **Always cite the reference file the snippet came from** so the user can verify.
 
-## Known gaps in v0.1
-
-Three reference files are stubs because the source docs were duplicates:
-
-- `references/save-card.md`
-- `references/create-virtual-card.md`
-- `references/api/create-virtual-card.md`
-
-If the user lands in any of these, fetch the live equivalent from `https://docs.crossmint.com/llms.txt` rather than guessing. Each stub file contains the exact URL to fetch.
-
 ## Output style
 
 - Write code the user can run as-is. Prefer Node + fetch (or curl) for portability; use `@crossmint/wallets-sdk` and `@crossmint/client-sdk-react-ui` when the user is in a React app.
