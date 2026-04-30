@@ -150,8 +150,126 @@ EOF
   WALLET_ALIAS="claude-agent-wallet" node get-server-wallet.mjs )
 ```
 
-### Read balance / send USDC / sign transactions
-Use the same pattern — write a snippet, source the env, `node ./snippet.mjs`. The wallet verbs (`wallet.send`, `wallet.balanceOf`, `wallet.signTypedData`, etc.) live in `references/using-the-wallet.md`. **Always confirm amounts and destinations with the user before submitting any mutating tx.**
+### Check balance
+
+```bash
+cat > balance.mjs <<'EOF'
+import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
+
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const wallets = CrossmintWallets.from(crossmint);
+
+const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
+const alias = process.env.WALLET_ALIAS || "claude-agent-wallet";
+
+const wallet = await wallets.getWallet(`evm:alias:${alias}`, { chain });
+const { nativeToken, tokens } = await wallet.balances(["usdc", "usdxm"]);
+
+console.log(JSON.stringify({ native: nativeToken, tokens }, null, 2));
+EOF
+
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
+  WALLET_ALIAS="claude-agent-wallet" node balance.mjs )
+```
+
+> Source: `references/wallet-actions/check-balances.md`. No mutation — safe to run without confirmation.
+
+### Fund a STAGING wallet with USDXM (testnet only)
+
+USDXM is Crossmint's staging stablecoin. The SDK exposes `wallet.stagingFund(amount)` for self-funding in test environments. **Production wallets cannot use this** — you fund those via real onramps (`references/onramp.md`).
+
+```bash
+cat > stagingFund.mjs <<'EOF'
+import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const wallets = CrossmintWallets.from(crossmint);
+const wallet = await wallets.getWallet(
+  `evm:alias:${process.env.WALLET_ALIAS}`,
+  { chain: "base-sepolia" }
+);
+await wallet.useSigner({ type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET });
+await wallet.stagingFund(Number(process.env.AMOUNT || "10"));
+console.log("Funded.");
+EOF
+
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
+  [ "$CROSSMINT_ENV" = staging ] || { echo "stagingFund only works in staging"; exit 1; }; \
+  WALLET_ALIAS="claude-agent-wallet" AMOUNT=10 node stagingFund.mjs )
+```
+
+### Send USDC
+
+> **Confirm with the user first** — show recipient, token, amount, and chain. Mutating action.
+
+```bash
+cat > send.mjs <<'EOF'
+import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
+
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const wallets = CrossmintWallets.from(crossmint);
+
+const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
+const wallet = await wallets.getWallet(
+  `evm:alias:${process.env.WALLET_ALIAS}`,
+  { chain }
+);
+await wallet.useSigner({ type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET });
+
+const tx = await wallet.send(
+  process.env.RECIPIENT,
+  process.env.TOKEN || "usdc",
+  process.env.AMOUNT
+);
+
+console.log(JSON.stringify({ hash: tx.hash, explorer: tx.explorerLink }, null, 2));
+EOF
+
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
+  WALLET_ALIAS="claude-agent-wallet" \
+  RECIPIENT="0xRECIPIENT" \
+  TOKEN="usdc" \
+  AMOUNT="0.50" \
+  node send.mjs )
+```
+
+### Sign an EIP-712 typed data payload (e.g. for x402)
+
+```bash
+cat > sign-typed.mjs <<'EOF'
+import { createCrossmint, CrossmintWallets, EVMWallet } from "@crossmint/wallets-sdk";
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const wallets = CrossmintWallets.from(crossmint);
+const wallet = await wallets.getWallet(
+  `evm:alias:${process.env.WALLET_ALIAS}`,
+  { chain: "base-sepolia" }
+);
+await wallet.useSigner({ type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET });
+
+const evm = EVMWallet.from(wallet);
+const typedData = JSON.parse(process.env.TYPED_DATA);
+const { signature } = await evm.signTypedData(typedData);
+console.log(signature);
+EOF
+
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
+  WALLET_ALIAS="claude-agent-wallet" \
+  TYPED_DATA='{"types":{...},"primaryType":"...","domain":{...},"message":{...}}' \
+  node sign-typed.mjs )
+```
+
+### List recent transfers
+
+```bash
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a;
+curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+  "${CROSSMINT_API_HOST}/api/unstable/wallets/${WALLET_LOCATOR}/transfers?chain=base-sepolia&tokens=usdc&limit=10" \
+  | jq . )
+```
+
+`WALLET_LOCATOR` can be the address (`0x…`) or `email:user@example.com:evm` or `evm:alias:claude-agent-wallet`.
+
+### More verbs
+The full surface (sign-message, send-transaction with calls array, add-signers with prepareOnly, etc.) lives in `references/wallet-actions/*.md`. Each guide has a SDK + REST snippet you can lift.
 
 ---
 

@@ -82,7 +82,14 @@ After resolving mode, drill into the right reference. Multi-intent requests read
 | User intent | First file |
 |---|---|
 | "credit card", "virtual card", "Amazon purchase via card", "checkout form fill" | `references/cards-quickstart.md` |
-| "wallet", "USDC", "stablecoin", "on-chain", "Base", "EVM", "Solana" | `references/stablecoin-wallets-quickstart.md` |
+| "create a wallet for me / for my agent", autonomous wallet | `references/server-signer.md` then `references/wallet-actions/create-wallet.md` |
+| "wallet", "USDC", "stablecoin", "on-chain", "Base", "EVM", "Solana" (user wallet flows) | `references/wallet-quickstart-node.md`, `wallet-quickstart-react.md`, or `wallet-quickstart-rest.md` depending on stack |
+| "send USDC", "transfer tokens" | `references/wallet-actions/transfer-tokens.md` |
+| "wallet balance", "how much USDC do I have" | `references/wallet-actions/check-balances.md` |
+| "sign a message", "EIP-712", "typed data" | `references/wallet-actions/sign-message.md` |
+| "call a contract", "send a transaction" | `references/wallet-actions/send-transaction.md` |
+| "transfer history", "list past transfers" | `references/wallet-actions/list-transfers.md` |
+| "add another signer to a wallet" | `references/wallet-actions/add-signers.md` |
 | "x402", "402 payment", "pay-per-call API" | `references/x402.md` |
 | "MPP", "machine payment protocol" | `references/mpp.md` |
 | "buy on Amazon / Shopify", "ship a product", "Worldstore", "flights" | `references/inventory.md` |
@@ -146,7 +153,11 @@ These are the bugs that the agent has actually hit. Trust the references, don't 
 
 4. **Server-signer wallets cannot be created via REST alone.** The secret stays on your server; the SDK does HKDF derivation locally to compute the address. If the user insists on REST, switch to an `external-wallet` admin signer (see `references/api/create-wallet.md`) — they manage the keys.
 
-5. **The "under construction" `references/server-agent-wallets.md` is not the source of truth.** `references/server-signer.md` is. Always read server-signer first when the user wants an autonomous wallet.
+5. **For SDK V1 wallet code, the canonical quickstarts are `references/wallet-quickstart-{node,react,rest}.md`.** They show the right `wallet.send(addr, "usdc", "1")`, `wallet.balances([...])`, `wallet.stagingFund(10)`, and the wallet locator formats (`email:user@example.com:evm:smart`, `evm:alias:...`).
+
+6. **For verbs on an existing wallet** (transfer, balance, sign message, send transaction, list transfers, add signers), read the matching file in `references/wallet-actions/` — every guide ships both SDK and REST shapes.
+
+7. **The "under construction" `references/server-agent-wallets.md` is not the source of truth.** `references/server-signer.md` is. Always read server-signer first when the user wants an autonomous wallet.
 
 ## What this skill is NOT for
 

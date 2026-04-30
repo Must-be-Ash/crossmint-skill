@@ -47,6 +47,28 @@ End-to-end: create a user wallet on EVM, authorize an agent as a delegated signe
 | — | **`server-signer.md`** | **Authoritative** SDK shape for server-signer wallets (`createWallet` with `recovery + alias`, `getWallet` with `evm:alias:...` locator, `useSigner`, HKDF key derivation). Read this BEFORE writing any autonomous wallet code |
 | — | `remove-agent-access.md` | Revoke the agent signer |
 
+### Wallets V1 — official quickstarts (canonical for current SDK)
+
+| File | Use when |
+|---|---|
+| `wallet-quickstart-node.md` | Building a Node backend that creates and uses wallets via `@crossmint/wallets-sdk` |
+| `wallet-quickstart-react.md` | Building a React/Next.js frontend with `CrossmintProvider` + `useWallet()` |
+| `wallet-quickstart-rest.md` | Building from any language via REST. Includes wallet-locator formats (address, `email:user@example.com:evm:smart`, `userId:...:solana:mpc`, etc.) |
+
+### Wallet Actions (`wallet-actions/`)
+
+The verbs you call on an existing wallet. Both SDK and REST shapes documented; same canonical source as `docs.crossmint.com/wallets/guides/`.
+
+| File | Action |
+|---|---|
+| `wallet-actions/create-wallet.md` | All admin-signer variants (`server`, `email`, `external-wallet`, `passkey`, `phone`, `api-key`); supported chains; idempotency; get-or-create pattern |
+| `wallet-actions/check-balances.md` | `wallet.balances([...])` SDK + REST `/balances?tokens=` query; native vs ERC-20 response shape |
+| `wallet-actions/transfer-tokens.md` | `wallet.send(recipient, token, amount)` SDK + REST `/tokens/{chain}:{token}/transfers`; token locator formats |
+| `wallet-actions/send-transaction.md` | Arbitrary contract calls — `EVMWallet.sendTransaction({ calls })` SDK + REST `/transactions`; for serialized transactions (e.g. Worldstore) and ABI-encoded calls |
+| `wallet-actions/sign-message.md` | EIP-191 (`signMessage`) and EIP-712 (`signTypedData`) for EVM. Three-step REST approval flow documented |
+| `wallet-actions/list-transfers.md` | `wallet.transfers({ tokens, status })` + REST `/wallets/.../transfers` with cursor pagination |
+| `wallet-actions/add-signers.md` | Add operational/delegated signers via `wallet.addSigner({...}, { prepareOnly })`; recovery vs operational distinction |
+
 ## Paid endpoints (agentic web)
 
 | File | Use when |
@@ -112,6 +134,7 @@ Terse request/response refs. Read the conceptual guide first, then come here for
 | File | Method | Purpose |
 |---|---|---|
 | `api/create-wallet.md` | POST | `POST /api/2025-06-09/wallets` — create a wallet with any admin signer (`external-wallet`, `passkey`, `email`, `phone`, or `api-key`). For server-signer wallets prefer the SDK — see `references/server-signer.md` |
+| `api/create-transaction.md` | POST | `POST /api/2025-06-09/wallets/{loc}/transactions` — submit arbitrary contract calls or pre-serialized transactions. Status flow: `awaiting-approval` → `pending` → `success` / `failed` |
 
 ---
 
@@ -142,7 +165,14 @@ Terse request/response refs. Read the conceptual guide first, then come here for
 
 - **"My agent needs to buy something on Amazon"** → `inventory.md` (preferred, has API), or `cards-quickstart.md` + `browser-checkout.md` (fallback)
 - **"My agent needs to pay an API that returned 402"** → `x402.md`
-- **"How do I give my agent a wallet?"** → `stablecoin-wallets-quickstart.md` → `authorize-agent.md`
+- **"How do I give my agent a wallet?"** → `server-signer.md` (autonomous) or `stablecoin-wallets-quickstart.md` → `authorize-agent.md` (user-bound)
+- **"Send USDC from my wallet"** → `wallet-actions/transfer-tokens.md`
+- **"What's the balance of my wallet?"** → `wallet-actions/check-balances.md`
+- **"Sign a message / EIP-712 typed data"** → `wallet-actions/sign-message.md`
+- **"Call a contract function from my wallet"** → `wallet-actions/send-transaction.md`
+- **"List the wallet's transfer history"** → `wallet-actions/list-transfers.md`
+- **"Add another signer to a wallet"** → `wallet-actions/add-signers.md`
+- **"Fund a staging wallet for testing"** → `wallet-quickstart-react.md` (`wallet.stagingFund(10)`)
 - **"How do I let my agent spend up to $50/month?"** → `authorize-agent.md` (signer scope) or `create-virtual-card.md` (card mandate)
 - **"User wants to top up their wallet with a card"** → `onramp.md`
 - **"How do I revoke the agent's access?"** → `remove-agent-access.md` (wallets) or `remove-cards.md` (cards)

@@ -24,8 +24,13 @@
 | Ask | Mode | What the agent does | What the user does |
 |---|---|---|---|
 | "Create a server agent wallet" (for the agent itself) | AUTO | Creates a wallet via the wallets SDK with the env signer secret as root | Nothing — Crossmint API key is enough |
-| "Check my wallet balance" | AUTO | Reads via the wallets SDK / RPC | Nothing |
-| "Send USDC to 0x…" | AUTO (with confirmation) | Builds + signs + submits the transaction | Confirms the destination + amount before submission |
+| "Check my wallet balance" | AUTO | `wallet.balances(["usdc","usdxm"])` via SDK or `GET /balances?tokens=...` (recipe in `assets/recipes-autonomous.md`) | Nothing |
+| "Fund my STAGING wallet" | AUTO | `wallet.stagingFund(amount)` (USDXM faucet) | Nothing |
+| "Send USDC to 0x…" | AUTO (with confirmation) | `wallet.send(recipient, "usdc", amount)` | Confirms destination + amount |
+| "Sign this message / EIP-712 payload" | AUTO (with confirmation) | `EVMWallet.from(wallet).signMessage(...)` or `signTypedData(...)`. Read `references/wallet-actions/sign-message.md` first | Confirms what's being signed |
+| "Call this contract function" | AUTO (with confirmation) | `EVMWallet.sendTransaction({ calls })` per `references/wallet-actions/send-transaction.md` | Confirms the call |
+| "List my recent transfers" | AUTO | `wallet.transfers({ tokens })` or REST `/transfers` | Nothing |
+| "Add another signer to my wallet" | AUTO or WITH-USER (depends on recovery) | `wallet.addSigner({...}, { prepareOnly })`; user approves via OTP if recovery is email/phone | OTP if user-recovery |
 | "Pay this x402 endpoint" | AUTO | Wires `@x402/core` + `wrapFetchWithPayment`, submits the payment | Confirms first call (it spends real USDC) |
 | "Pay this MPP endpoint" | AUTO | Same with `mppx/client` | Confirms |
 | "Create a user wallet for my app's end users" | CODE-GEN | Writes the React `CrossmintWalletProvider` + auth setup | Runs the app |
