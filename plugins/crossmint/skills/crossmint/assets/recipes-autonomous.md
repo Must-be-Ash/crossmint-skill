@@ -283,51 +283,22 @@ The full surface (sign-message, send-transaction with calls array, add-signers w
 
 ---
 
-## x402 — pay an HTTP 402 endpoint inline
+## x402 — pay an HTTP 402 endpoint (probe-first)
 
+> **The full canonical flow is in `references/x402.md` and `assets/recipes-x402.md`.** They cover both x402 v1 and v2, register both schemes, and document the header-name disambiguation.
+>
+> The condensed version, in two steps:
+
+### Step 1 — probe (always; never skip)
 ```bash
-mkdir -p /tmp/crossmint-x402 && cd /tmp/crossmint-x402
-[ -f package.json ] || npm init -y >/dev/null 2>&1
-npm i @crossmint/wallets-sdk @x402/core @x402/evm viem >/dev/null 2>&1
-
-cat > pay.mjs <<'EOF'
-import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
-import { x402Client, x402HTTPClient, wrapFetchWithPayment } from "@x402/core/client";
-import { ExactEvmScheme } from "@x402/evm/exact/client";
-
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
-const wallets = CrossmintWallets.from(crossmint);
-const wallet = await wallets.getWallet(process.env.WALLET_ADDRESS, { chain: "base" });
-
-await wallet.useSigner({ type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET });
-
-const x402Signer = {
-  address: wallet.address,
-  async signTypedData(typedData) {
-    const { signature } = await wallet.signTypedData({ ...typedData, chain: "base" });
-    return signature;
-  },
-};
-
-const client = new x402Client();
-client.register("eip155:*", new ExactEvmScheme(x402Signer));
-const fetchPay = wrapFetchWithPayment(fetch, client);
-
-const res = await fetchPay(process.env.TARGET_URL, { method: "GET" });
-console.log("status:", res.status);
-console.log("body:", await res.text());
-
-if (res.ok) {
-  const httpClient = new x402HTTPClient(client);
-  console.log("receipt:", httpClient.getPaymentSettleResponse((n) => res.headers.get(n)));
-}
-EOF
-
-( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
-  WALLET_ADDRESS="0x..." TARGET_URL="https://api.example.com/protected" node pay.mjs )
+curl -si "$TARGET_URL" | head -50
 ```
+Read `x402Version`, `accepts[0].network`, `accepts[0].maxAmountRequired` (raw USDC; ÷ 1,000,000 for dollars). Confirm with the user before paying.
 
-> Source: `references/x402.md`. Confirm the URL and the wallet's USDC balance with the user before running — this spends real money on the first 402 negotiation.
+### Step 2 — sign + retry
+Use the snippet in `assets/recipes-x402.md`. It registers both v1 (network names) and v2 (CAIP-2) schemes upfront, derives the right header name from `paymentPayload.x402Version` (`X-PAYMENT` for v1, `PAYMENT-SIGNATURE` for v2), and decodes the `x-payment-response` receipt.
+
+> **Do NOT use** `wrapFetchWithPayment` from `@x402/core/client` — it was removed in `@x402/core ≥ 2.11.0`. Use the manual `client.createPaymentPayload()` + `encodePaymentSignatureHeader()` flow shown in the recipe.
 
 ---
 

@@ -94,7 +94,7 @@ After resolving mode, drill into the right reference. Multi-intent requests read
 | "list NFTs", "wallet NFT balances" | `references/wallet-actions/check-balances.md` (NFT Balances tab) |
 | "frictionless on-device signing", "no OTP for signing", "device signer + server-created wallet" | `references/server-wallet-with-device-signer.md` |
 | "configure CrossmintProvider / AuthProvider / WalletProvider props" | `references/react-providers.md` |
-| "x402", "402 payment", "pay-per-call API" | `references/x402.md` (and `references/funding-staging-wallets.md` if balance is 0 — x402 needs **USDC**, not USDXM) |
+| "x402", "402 payment", "pay-per-call API" | `references/x402.md` (probe-first, v1+v2 support; overrides the live Crossmint doc) — and `references/funding-staging-wallets.md` if balance is 0 (x402 needs **USDC**, not USDXM) |
 | "fund my wallet", "I have no USDC", "wallet is empty" | `references/funding-staging-wallets.md` |
 | "MPP", "machine payment protocol" | `references/mpp.md` |
 | "buy on Amazon / Shopify", "ship a product", "Worldstore", "flights" | `references/inventory.md` |
@@ -165,6 +165,14 @@ These are the bugs that the agent has actually hit. Trust the references, don't 
 7. **The "under construction" `references/server-agent-wallets.md` is not the source of truth.** `references/server-signer.md` is. Always read server-signer first when the user wants an autonomous wallet.
 
 8. **USDXM ≠ USDC. Pick the right one.** `wallet.stagingFund(amount)` mints USDXM (Crossmint's testnet token). USDXM is fine for self-contained Crossmint demos but **no live x402 / MPP / Worldstore endpoint accepts it**. For any flow that touches an external endpoint on staging, fund with **base-sepolia USDC** via [Circle's faucet](https://faucet.circle.com/) — no auth, no captcha, just paste the address. Read `references/funding-staging-wallets.md` for the per-use-case fund decision and the verbatim instruction the agent should give the user.
+
+9. **x402: ALWAYS probe first, never use `wrapFetchWithPayment`.** When the user asks "pay this URL via x402":
+   - **Step 1 is always** `curl -si <URL>` to read the 402 body. You cannot know the version (v1 vs v2), network, amount, or recipient until you do. Two real sessions burned 30+ minutes each by skipping this.
+   - **`wrapFetchWithPayment` from `@x402/core/client` is gone** in `@x402/core ≥ 2.11.0`. The Crossmint live docs still show it. Use the manual `client.createPaymentPayload()` + `encodePaymentSignatureHeader()` flow in `references/x402.md` — that's the canonical override and it works against current packages.
+   - **Register both schemes up front** because endpoints in the wild use both: `client.register("eip155:*", new ExactEvmScheme(signer))` for v2 + `client.registerV1(network, new ExactEvmSchemeV1(signer))` for v1.
+   - **Header name depends on version**: `X-PAYMENT` for v1, `PAYMENT-SIGNATURE` for v2. Derive from `paymentPayload.x402Version`.
+   - **Re-sign for each retry.** Payment payloads carry an EIP-3009 `validBefore` (~15 min). A stale header → 500 from the facilitator.
+   - **HTTP 405 after a successful payment is an endpoint bug, not a payment bug.** Check `x-payment-response` — if `success: true`, the USDC moved; tell the user the payment landed and show the tx hash.
 
 ## What this skill is NOT for
 
