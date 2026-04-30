@@ -26,7 +26,12 @@ The agent runs API calls using credentials at `~/.config/crossmint/.env`. **Dete
 
 When setup is needed AND the user is asking for something AUTO/WITH-USER:
 
-1. Tell them: "I can do that, but I need a Crossmint API key first. Get one (free) at https://staging.crossmint.com/console/projects/apiKeys — pick **server-side** key, leave all scopes enabled. Paste it here when ready, or say 'skip' if you only want code-gen help."
+1. Tell them: "I can do that, but I need a Crossmint API key first. Get one (free) at https://staging.crossmint.com/console/projects/apiKeys. Pick the key type that matches what you want to do — leave all scopes enabled either way. Paste it here when ready, or say 'skip' if you only want code-gen help."
+
+   **Key type by task:**
+   - **Wallet creation, x402 / MPP payments, Worldstore orders, autonomous spending** → **server-side** key (`sk_staging_*` / `sk_production_*`)
+   - **Cards: register agent, save card, enroll, virtual card credentials** → **client-side** key (`ck_staging_*` / `ck_production_*`) used with a user JWT
+   - Unsure? Default to server-side; it covers the most common autonomous flows. You can re-run setup later with `--force` to swap.
 2. **Locate the scripts.** When the skill is installed via `npx skills add`, scripts live somewhere under `~/.claude/plugins/`. Resolve the path once:
    ```bash
    SKILL_ROOT=$(find "${HOME}/.claude" -type d -path '*/skills/crossmint' 2>/dev/null | head -1)
@@ -119,6 +124,29 @@ Read-only calls (list agents, list payment methods, get order status) need no co
 Always cite the reference file a snippet came from so the user can verify.
 
 ---
+
+## Lessons from real sessions — bake these in before writing any wallet code
+
+These are the bugs that the agent has actually hit. Trust the references, don't guess.
+
+1. **The `@crossmint/wallets-sdk` `createWallet` shape is `recovery + alias`, NOT `signer + owner`.** The `signer:` field does not exist on `createWallet`. The `owner:` field is for user-bound wallets, not server-signer ones — use `alias:` instead. Source: `references/server-signer.md`.
+
+   ```typescript
+   // ✅ CORRECT — server agent wallet
+   const wallet = await wallets.createWallet({
+     chain: "base-sepolia",
+     recovery: { type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET },
+     alias: "my-server-wallet",
+   });
+   ```
+
+2. **Retrieve a server wallet by `evm:alias:<your-alias>`.** Then call `wallet.useSigner({ type: "server", secret })` before any signing op. Skipping `useSigner` is the second-most-common bug.
+
+3. **Server-side key ≠ client-side key.** The CRUD endpoints under `/api/unstable/*` (agents, payment methods, virtual cards) generally need a **client** key + user JWT. The wallets API under `/api/2025-06-09/wallets` and Worldstore under `/api/2022-06-09/orders` need a **server** key. `scripts/doctor.sh` auto-detects the key prefix and probes the right endpoint.
+
+4. **Server-signer wallets cannot be created via REST alone.** The secret stays on your server; the SDK does HKDF derivation locally to compute the address. If the user insists on REST, switch to an `external-wallet` admin signer (see `references/api/create-wallet.md`) — they manage the keys.
+
+5. **The "under construction" `references/server-agent-wallets.md` is not the source of truth.** `references/server-signer.md` is. Always read server-signer first when the user wants an autonomous wallet.
 
 ## What this skill is NOT for
 

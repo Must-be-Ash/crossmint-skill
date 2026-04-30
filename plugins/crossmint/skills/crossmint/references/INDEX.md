@@ -43,7 +43,8 @@ End-to-end: create a user wallet on EVM, authorize an agent as a delegated signe
 | 2 | `authorize-agent.md` | Add the agent as a delegated signer with scoped permissions (spend cap, counterparties, time window) |
 | 3 | `onramp.md` | Card-to-USDC onramp so the user can fund the wallet |
 | 4 | `using-the-wallet.md` | Send stablecoins, swap, bridge, or call any contract from the agent |
-| — | `server-agent-wallets.md` | Backend-only wallets when there's no end user (autonomous agents) |
+| — | `server-agent-wallets.md` | Backend-only wallets when there's no end user (autonomous agents) — points at `server-signer.md` for the SDK shape |
+| — | **`server-signer.md`** | **Authoritative** SDK shape for server-signer wallets (`createWallet` with `recovery + alias`, `getWallet` with `evm:alias:...` locator, `useSigner`, HKDF key derivation). Read this BEFORE writing any autonomous wallet code |
 | — | `remove-agent-access.md` | Revoke the agent signer |
 
 ## Paid endpoints (agentic web)
@@ -105,6 +106,12 @@ Terse request/response refs. Read the conceptual guide first, then come here for
 | `api/get-virtual-card.md` | GET | Get one order intent by ID |
 | `api/create-virtual-card.md` | POST | Issue a new order intent (virtual card); scope `order-intents.create` |
 | `api/get-virtual-card-credentials.md` | POST | Fetch PAN, expiry, CVC for an order intent (merchant-scoped); scope `order-intents.credentials` |
+
+### Wallets (REST surface — for non-server-signer flows)
+
+| File | Method | Purpose |
+|---|---|---|
+| `api/create-wallet.md` | POST | `POST /api/2025-06-09/wallets` — create a wallet with any admin signer (`external-wallet`, `passkey`, `email`, `phone`, or `api-key`). For server-signer wallets prefer the SDK — see `references/server-signer.md` |
 
 ---
 

@@ -90,8 +90,16 @@ SETUP_COMPLETE=true
 EOF
 chmod 600 "${ENV_FILE}"
 
+# Detect key type for the user-facing summary.
+case "${API_KEY}" in
+  sk_*) KEY_TYPE="server-side (sk_*)  — works for: wallet creation, x402 / MPP payments, Worldstore orders, all autonomous flows" ;;
+  ck_*) KEY_TYPE="client-side (ck_*)  — works for: agents / cards / virtual-cards CRUD with a user JWT" ;;
+  *)    KEY_TYPE="unknown prefix      — verify the key is valid for your intended flow" ;;
+esac
+
 echo "OK: wrote ${ENV_FILE}"
 echo "    env=${ENVIRONMENT}   host=${API_HOST}"
+echo "    key  ${KEY_TYPE}"
 echo "    signer secret saved (xmsk1_… 64 hex chars)"
 echo
 echo "Next: run scripts/doctor.sh to verify the API key works."

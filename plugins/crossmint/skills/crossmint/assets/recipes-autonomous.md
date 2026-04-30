@@ -95,9 +95,9 @@ curl -s -X POST \
 
 ## Wallets — server-side via the SDK
 
-The wallets SDK is JS-only. The agent runs Node inline. Source: `references/create-user-wallet.md` server-side section, `references/authorize-agent.md` for signer patterns.
+The wallets SDK is JS-only. The agent runs Node inline. **Source-of-truth for the SDK shape: `references/server-signer.md`.** The shape is `recovery + alias`, NOT `signer + owner`. Trust this snippet; do not invent fields.
 
-### Quick scratch script (writes to /tmp, runs once, prints address)
+### Create a server agent wallet
 
 ```bash
 mkdir -p /tmp/crossmint-scratch && cd /tmp/crossmint-scratch
@@ -110,23 +110,48 @@ import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
 const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 
+const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
+const alias = process.env.WALLET_ALIAS || "claude-agent-wallet";
+
 const wallet = await wallets.createWallet({
-  chain: process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia",
-  owner: `agent:${process.env.OWNER_TAG ?? "default"}`,
-  signer: { type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET },
+  chain,
+  recovery: { type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET },
+  alias,
 });
 
-console.log(JSON.stringify({ address: wallet.address }, null, 2));
+console.log(JSON.stringify({ address: wallet.address, chain, alias }, null, 2));
 EOF
 
 ( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
-  OWNER_TAG="claude-skill-test" node create-server-wallet.mjs )
+  WALLET_ALIAS="claude-agent-wallet" node create-server-wallet.mjs )
 ```
 
-> The `signer: { type: "server", secret: ... }` shape is the same one the docs use for delegated agent signers (see `references/authorize-agent.md`). Used as the wallet's root, this creates a wallet the agent fully owns. Confirm with the user that they want a new wallet before running — wallet creation is idempotent per `owner`, so reusing the same `OWNER_TAG` returns the same wallet.
+> `alias` is your handle for `getWallet` later — pick something meaningful and persist it. Wallet creation with the same `alias` + project + chain is idempotent.
+
+### Retrieve an existing wallet by alias
+
+```bash
+cat > get-server-wallet.mjs <<'EOF'
+import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
+
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const wallets = CrossmintWallets.from(crossmint);
+
+const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
+const alias = process.env.WALLET_ALIAS || "claude-agent-wallet";
+
+const wallet = await wallets.getWallet(`evm:alias:${alias}`, { chain });
+await wallet.useSigner({ type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET });
+
+console.log(JSON.stringify({ address: wallet.address, chain, alias }, null, 2));
+EOF
+
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; \
+  WALLET_ALIAS="claude-agent-wallet" node get-server-wallet.mjs )
+```
 
 ### Read balance / send USDC / sign transactions
-Use the same pattern — write the snippet, source the env, `node ./snippet.mjs`. The on-chain verbs (`wallet.send`, `wallet.balanceOf`, `wallet.signTypedData`, etc.) are documented in `references/using-the-wallet.md`. Always confirm amounts with the user before submitting any tx.
+Use the same pattern — write a snippet, source the env, `node ./snippet.mjs`. The wallet verbs (`wallet.send`, `wallet.balanceOf`, `wallet.signTypedData`, etc.) live in `references/using-the-wallet.md`. **Always confirm amounts and destinations with the user before submitting any mutating tx.**
 
 ---
 
