@@ -90,6 +90,8 @@ After resolving mode, drill into the right reference. Multi-intent requests read
 | "call a contract", "send a transaction" | `references/wallet-actions/send-transaction.md` |
 | "transfer history", "list past transfers" | `references/wallet-actions/list-transfers.md` |
 | "add another signer to a wallet" | `references/wallet-actions/add-signers.md` |
+| "what methods does the wallet have", "list NFTs", "get a past transaction by id", "wallet.recover" | `references/wallet-actions/wallet-methods.md` |
+| "frictionless on-device signing", "no OTP for signing", "device signer + server-created wallet" | `references/server-wallet-with-device-signer.md` |
 | "x402", "402 payment", "pay-per-call API" | `references/x402.md` |
 | "MPP", "machine payment protocol" | `references/mpp.md` |
 | "buy on Amazon / Shopify", "ship a product", "Worldstore", "flights" | `references/inventory.md` |

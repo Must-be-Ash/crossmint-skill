@@ -54,6 +54,8 @@ End-to-end: create a user wallet on EVM, authorize an agent as a delegated signe
 | `wallet-quickstart-node.md` | Building a Node backend that creates and uses wallets via `@crossmint/wallets-sdk` |
 | `wallet-quickstart-react.md` | Building a React/Next.js frontend with `CrossmintProvider` + `useWallet()` |
 | `wallet-quickstart-rest.md` | Building from any language via REST. Includes wallet-locator formats (address, `email:user@example.com:evm:smart`, `userId:...:solana:mpc`, etc.) |
+| `react-sdk-get-started.md` | Concise React SDK install + provider snippet. Use when the user only needs the provider/hook setup, not the full quickstart |
+| `server-wallet-with-device-signer.md` | **Cross-device pattern.** Server creates the wallet with the user's device signer pre-registered → user signs on-device with NO OTP. Use when the user wants frictionless mobile/web signing without giving up server control of wallet creation |
 
 ### Wallet Actions (`wallet-actions/`)
 
@@ -68,6 +70,7 @@ The verbs you call on an existing wallet. Both SDK and REST shapes documented; s
 | `wallet-actions/sign-message.md` | EIP-191 (`signMessage`) and EIP-712 (`signTypedData`) for EVM. Three-step REST approval flow documented |
 | `wallet-actions/list-transfers.md` | `wallet.transfers({ tokens, status })` + REST `/wallets/.../transfers` with cursor pagination |
 | `wallet-actions/add-signers.md` | Add operational/delegated signers via `wallet.addSigner({...}, { prepareOnly })`; recovery vs operational distinction |
+| `wallet-actions/wallet-methods.md` | **Full Wallet method surface** — `useWallet()` return shape and every method on the `wallet` object: `nfts()`, `transactions()`, `transaction(id)`, `recover()`, `needsRecovery()`, `signerIsRegistered()`, plus `useSigner` auto-select behavior. Read when the user asks "what can the wallet do?" |
 
 ## Paid endpoints (agentic web)
 
