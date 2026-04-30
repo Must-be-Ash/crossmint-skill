@@ -86,6 +86,9 @@ CROSSMINT_API_KEY=${API_KEY}
 CROSSMINT_SIGNER_SECRET=${SIGNER_SECRET}
 CROSSMINT_ENV=${ENVIRONMENT}
 CROSSMINT_API_HOST=${API_HOST}
+# Default wallet alias the agent uses for get-or-create. Same alias + same
+# CROSSMINT_SIGNER_SECRET + same project + same chain → same address forever.
+WALLET_ALIAS=claude-agent-wallet
 SETUP_COMPLETE=true
 EOF
 chmod 600 "${ENV_FILE}"

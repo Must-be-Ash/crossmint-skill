@@ -97,6 +97,48 @@ curl -s -X POST \
 
 The wallets SDK is JS-only. The agent runs Node inline. **Source-of-truth for the SDK shape: `references/server-signer.md`.** The shape is `recovery + alias`, NOT `signer + owner`. Trust this snippet; do not invent fields.
 
+### "What's my wallet?" — get-or-create (FIRST move for any wallet question)
+
+When the user asks *"what's your wallet"*, *"do you have a wallet"*, *"show me your wallet"*, *"what address"* — **run this** before anything else. **Do NOT** call `GET /api/unstable/agents` (that's the cards-stack agents API and needs a client key). **Do NOT** call `GET /api/2025-06-09/wallets` (it's not a list endpoint; it needs a locator).
+
+The canonical move is `wallets.getWallet("evm:alias:<WALLET_ALIAS>", { chain })`. If the wallet doesn't exist yet, fall through to `createWallet` — same alias + same secret + same project + same chain returns the same address every time, so this is idempotent and safe to run any time.
+
+```bash
+mkdir -p /tmp/crossmint-scratch && cd /tmp/crossmint-scratch
+[ -f package.json ] || npm init -y >/dev/null 2>&1
+[ -d node_modules/@crossmint/wallets-sdk ] || npm i @crossmint/wallets-sdk >/dev/null 2>&1
+
+cat > my-wallet.mjs <<'EOF'
+import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
+
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const wallets = CrossmintWallets.from(crossmint);
+
+const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
+const alias = process.env.WALLET_ALIAS || "claude-agent-wallet";
+
+let wallet, created = false;
+try {
+  wallet = await wallets.getWallet(`evm:alias:${alias}`, { chain });
+} catch (e) {
+  if (e?.name === "WalletNotAvailableError" || /not.*found|no.*wallet/i.test(e?.message || "")) {
+    wallet = await wallets.createWallet({
+      chain,
+      recovery: { type: "server", secret: process.env.CROSSMINT_SIGNER_SECRET },
+      alias,
+    });
+    created = true;
+  } else throw e;
+}
+
+console.log(JSON.stringify({ address: wallet.address, alias, chain, created }, null, 2));
+EOF
+
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; node my-wallet.mjs )
+```
+
+`WALLET_ALIAS` is now saved to `~/.config/crossmint/.env` by `setup.sh` (default: `claude-agent-wallet`). The `created: true|false` field tells you whether this run actually created the wallet or returned an existing one.
+
 ### Create a server agent wallet
 
 ```bash

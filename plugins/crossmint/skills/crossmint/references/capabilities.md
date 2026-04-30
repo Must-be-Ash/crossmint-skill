@@ -23,6 +23,7 @@
 
 | Ask | Mode | What the agent does | What the user does |
 |---|---|---|---|
+| "What's your wallet?", "do you have a wallet?", "show me your wallet" | AUTO | Run the **get-or-create** snippet at the top of `assets/recipes-autonomous.md`. SDK's `wallets.getWallet("evm:alias:claude-agent-wallet", { chain })` with `createWallet` fallback. **Do NOT** hit `GET /unstable/agents` or `GET /api/2025-06-09/wallets` — those are wrong for this question | Nothing |
 | "Create a server agent wallet" (for the agent itself) | AUTO | Creates a wallet via the wallets SDK with the env signer secret as root | Nothing — Crossmint API key is enough |
 | "Check my wallet balance" | AUTO | `wallet.balances(["usdc","usdxm"])` via SDK or `GET /balances?tokens=...` (recipe in `assets/recipes-autonomous.md`) | Nothing |
 | "Fund my STAGING wallet" | AUTO | `wallet.stagingFund(amount)` (USDXM faucet) | Nothing |

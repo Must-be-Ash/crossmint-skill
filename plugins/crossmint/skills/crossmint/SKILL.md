@@ -81,6 +81,7 @@ After resolving mode, drill into the right reference. Multi-intent requests read
 
 | User intent | First file |
 |---|---|
+| "what's your wallet", "do you have a wallet", "show me your wallet", "what address" | Skip the docs — run the **"What's my wallet?" get-or-create** snippet at the top of `assets/recipes-autonomous.md`. **Do NOT** call `GET /unstable/agents` (cards-stack, wrong key type) or `GET /api/2025-06-09/wallets` (not a list endpoint) |
 | "credit card", "virtual card", "Amazon purchase via card", "checkout form fill" | `references/cards-quickstart.md` |
 | "create a wallet for me / for my agent", autonomous wallet | `references/server-signer.md` then `references/wallet-actions/create-wallet.md` |
 | "wallet", "USDC", "stablecoin", "on-chain", "Base", "EVM", "Solana" (user wallet flows) | `references/wallet-quickstart-node.md`, `wallet-quickstart-react.md`, or `wallet-quickstart-rest.md` depending on stack |
@@ -166,7 +167,9 @@ These are the bugs that the agent has actually hit. Trust the references, don't 
 
 8. **USDXM ≠ USDC. Pick the right one.** `wallet.stagingFund(amount)` mints USDXM (Crossmint's testnet token). USDXM is fine for self-contained Crossmint demos but **no live x402 / MPP / Worldstore endpoint accepts it**. For any flow that touches an external endpoint on staging, fund with **base-sepolia USDC** via [Circle's faucet](https://faucet.circle.com/) — no auth, no captcha, just paste the address. Read `references/funding-staging-wallets.md` for the per-use-case fund decision and the verbatim instruction the agent should give the user.
 
-9. **x402: ALWAYS probe first, never use `wrapFetchWithPayment`.** When the user asks "pay this URL via x402":
+9. **"What's your wallet?" has ONE canonical first move.** Real session burned 3 round-trips because the agent tried `GET /api/unstable/agents` (different concept — cards stack — needs a client key) and `GET /api/2025-06-09/wallets` (not a list endpoint, requires a locator) before landing on the right call. The right call is the SDK's `wallets.getWallet("evm:alias:${WALLET_ALIAS}", { chain })`, with `WalletNotAvailableError` → fall through to `createWallet` (idempotent on the same alias). The "What's my wallet?" recipe at the top of `assets/recipes-autonomous.md` packages this; run it directly. `WALLET_ALIAS` is saved to `~/.config/crossmint/.env` by `setup.sh` so you don't need to guess.
+
+10. **x402: ALWAYS probe first, never use `wrapFetchWithPayment`.** When the user asks "pay this URL via x402":
    - **Step 1 is always** `curl -si <URL>` to read the 402 body. You cannot know the version (v1 vs v2), network, amount, or recipient until you do. Two real sessions burned 30+ minutes each by skipping this.
    - **`wrapFetchWithPayment` from `@x402/core/client` is gone** in `@x402/core ≥ 2.11.0`. The Crossmint live docs still show it. Use the manual `client.createPaymentPayload()` + `encodePaymentSignatureHeader()` flow in `references/x402.md` — that's the canonical override and it works against current packages.
    - **Register both schemes up front** because endpoints in the wild use both: `client.register("eip155:*", new ExactEvmScheme(signer))` for v2 + `client.registerV1(network, new ExactEvmSchemeV1(signer))` for v1.
