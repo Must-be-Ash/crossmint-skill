@@ -203,11 +203,23 @@ These are the bugs that the agent has actually hit. Trust the references, don't 
 
 10. **Prefer `scripts/wallet.sh` and `scripts/x402.sh` over re-deriving Node.** Real session burned a turn because the agent simplified `wallet.balances([…])` to only USDXM and then *fabricated* a `USDC: 0` row. The CLI tools always query the canonical token set and verify USDC against the on-chain contract. Same for x402 — the script handles v1 + v2, header naming, and receipt decoding so the agent doesn't have to remember.
 
-   Resolve `$SKILL_ROOT` once per session:
+   **Resolve `$SKILL_ROOT` from the cached `.env`** (written by `setup.sh`):
    ```bash
-   SKILL_ROOT=$(find "${HOME}/.claude" -type d -path '*/skills/crossmint' 2>/dev/null | head -1)
+   SKILL_ROOT=$(grep ^SKILL_ROOT "${HOME}/.config/crossmint/.env" 2>/dev/null | cut -d= -f2-)
+   # Fallback if absent (older setup, or skill installed without re-running setup):
+   if [[ -z "${SKILL_ROOT:-}" || ! -d "${SKILL_ROOT}" ]]; then
+     for c in \
+       "$(pwd)/.agents/skills/crossmint" \
+       "${HOME}/.claude/plugins/cache"/*/skills/crossmint \
+       "${HOME}/.agents/skills/crossmint" \
+       "${HOME}/.codex/skills/crossmint"; do
+       [[ -d "$c" ]] && { SKILL_ROOT="$c"; break; }
+     done
+   fi
    ```
    Then run `bash "$SKILL_ROOT/scripts/wallet.sh" <cmd>` etc. All seven commands (info, balance, send, transfers, sign, x402 probe, x402 pay) emit pure JSON on stdout — pipe to `jq` freely.
+
+   First call may take 25s if the runtime cache is cold (`setup.sh` pre-warms it; if you're on a config from before that change, the first script invocation pays the install cost once).
 
    **Only** fall back to writing inline Node when:
    - The user wants something the script doesn't cover (custom EIP-712 domain, contract call with raw calldata, USDXM-specific test, etc.)

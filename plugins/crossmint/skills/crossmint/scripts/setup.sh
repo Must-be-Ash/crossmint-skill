@@ -126,6 +126,19 @@ umask 077
 } > "${ENV_FILE}"
 chmod 600 "${ENV_FILE}"
 
+# --- resolve & cache SKILL_ROOT so the agent doesn't have to find/grep for it
+# Where this very script lives = scripts/. Skill root is the parent.
+SCRIPT_DIR_NOW="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SKILL_ROOT_RESOLVED="$( cd "${SCRIPT_DIR_NOW}/.." && pwd )"
+echo "SKILL_ROOT=${SKILL_ROOT_RESOLVED}" >> "${ENV_FILE}"
+
+# --- pre-warm the Node runtime so the first wallet/x402 call isn't 25s
+if [[ -f "${SCRIPT_DIR_NOW}/lib/runtime.sh" ]]; then
+  echo "Pre-warming runtime cache (one-time, ~25s)..."
+  ( bash -c "source '${SCRIPT_DIR_NOW}/lib/runtime.sh'" 2>/dev/null ) || \
+    echo "WARN: pre-warm failed; first wallet/x402 call will install deps."
+fi
+
 # --- summary --------------------------------------------------------------
 echo "OK: wrote ${ENV_FILE}"
 echo "    env=${ENVIRONMENT}   host=${API_HOST}"
@@ -142,5 +155,7 @@ if [[ -n "${CLIENT_KEY}" ]]; then
 else
   echo "    [ ] CROSSMINT_CLIENT_API_KEY  — MISSING. To add later, re-run with --client-key ck_... --force"
 fi
+echo
+echo "    [✓] SKILL_ROOT cached  — ${SKILL_ROOT_RESOLVED}"
 echo
 echo "Next: run scripts/doctor.sh to verify the keys work against the configured environment."
