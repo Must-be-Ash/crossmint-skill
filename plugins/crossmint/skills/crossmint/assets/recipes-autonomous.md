@@ -95,7 +95,24 @@ curl -s -X POST \
 
 ---
 
-## Wallets — server-side via the SDK
+## Wallets — prefer the CLI scripts over inline Node
+
+> **For info, balance, send, transfers, and sign — use the CLI scripts.** They handle the gotchas (USDC contract verification, REST `tokens=`+`status=` requirements, SDK chatter routing, idempotent get-or-create) so the agent doesn't have to re-derive them each session.
+>
+> Resolve `SKILL_ROOT` once: `SKILL_ROOT=$(find "${HOME}/.claude" -type d -path '*/skills/crossmint' | head -1)`
+>
+> | Ask | Run | Returns |
+> |---|---|---|
+> | "what's my wallet?" | `bash "$SKILL_ROOT/scripts/wallet.sh" info` | `{address, alias, chain, env, created}` |
+> | "what's my balance?" | `bash "$SKILL_ROOT/scripts/wallet.sh" balance` | `{usdc:{amount,raw,contract,sdkAgrees}, usdxm, native}` |
+> | "send X USDC to Y" | `bash "$SKILL_ROOT/scripts/wallet.sh" send <recipient> <token> <amount>` | `{hash, explorer, ...}` |
+> | "list transfers" | `bash "$SKILL_ROOT/scripts/wallet.sh" transfers [limit]` | `{count, source, transfers:[…]}` |
+> | "sign a message" | `bash "$SKILL_ROOT/scripts/wallet.sh" sign "<message>"` | `{message, signature, signer}` |
+> | "pay this x402 url" | `bash "$SKILL_ROOT/scripts/x402.sh" probe <url>` then `… pay <url> [--max raw]` | `{paidStatus, paidBody, receipt, paymentRequired}` |
+>
+> All emit JSON on stdout (pipe to `jq`), SDK chatter on stderr.
+>
+> **Use the inline Node snippets below ONLY when** the script doesn't cover the case (e.g. EIP-712 typed data with a custom domain, raw contract calls with calldata, USDXM-specific tests).
 
 The wallets SDK is JS-only. The agent runs Node inline. **Source-of-truth for the SDK shape: `references/server-signer.md`.** The shape is `recovery + alias`, NOT `signer + owner`. Trust this snippet; do not invent fields.
 
@@ -329,9 +346,11 @@ The full surface (sign-message, send-transaction with calls array, add-signers w
 
 ## x402 — pay an HTTP 402 endpoint (probe-first)
 
-> **The full canonical flow is in `references/x402.md` and `assets/recipes-x402.md`.** They cover both x402 v1 and v2, register both schemes, and document the header-name disambiguation.
+> **Use the CLI scripts.** `scripts/x402.sh probe <url>` reads the 402 body and gives you `{x402Version, network, maxAmountRequired, maxAmountUSD, payTo}` without spending. After confirming with the user, `scripts/x402.sh pay <url> [--max <raw>]` handles the v1+v2 schemes, header naming, and receipt decoding.
 >
-> The condensed version, in two steps:
+> The full canonical flow + raw inline snippets are in `references/x402.md` and `assets/recipes-x402.md` if you need to customize.
+>
+> The condensed inline version, in two steps:
 
 ### Step 1 — probe (always; never skip)
 ```bash

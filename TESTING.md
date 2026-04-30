@@ -26,6 +26,17 @@ For each prompt, watch what the agent does. **Pass criteria:** the agent picks t
 - **Expected first read:** `references/capabilities.md` (to confirm AUTO), then runs the curl from `assets/recipes-autonomous.md`.
 - **Pass:** sources `~/.config/crossmint/.env` in a subshell, calls `GET /unstable/agents`, prints the parsed JSON. Does NOT generate a Node app for this.
 
+### B2. CLI proxy tools — wallet info / balance / transfers / x402
+> "What's my wallet? What's my balance? Show me my last 3 transfers."
+
+- **Pass:** the agent runs `bash $SKILL_ROOT/scripts/wallet.sh info`, then `... balance`, then `... transfers 3`. Three Bash calls, three JSON outputs, no inline Node generation.
+- **The balance call must show real USDC** verified on-chain (`source: "onchain"` and `sdkAgrees: true|false`), not a fabricated 0.
+
+> "Pay this x402 endpoint: https://nickeljoke.vercel.app/api/joke"
+
+- **Pass:** the agent runs `bash $SKILL_ROOT/scripts/x402.sh probe <url>`, reads `maxAmountUSD` from the JSON, confirms with the user, then runs `... pay <url> --max 10000`. Two Bash calls. Returns `{paidStatus, paidBody, receipt}` with `receipt.success: true` and a tx hash.
+- **Anti-pattern to catch:** agent writing inline Node with `wrapFetchWithPayment` or `ExactEvmScheme` — that path is fallback-only now.
+
 ### C. WITH-USER action — issue a virtual card
 > "Get me a virtual card capped at $50 for grocery purchases."
 

@@ -69,6 +69,22 @@ Just describe what you want. The agent picks the mode and either runs it, walks 
 
 The agent never invents endpoints — if a fact isn't in the shipped references, it points you at [docs.crossmint.com](https://docs.crossmint.com) instead. Before any spend, it shows the exact action and waits for your confirmation.
 
+## CLI proxy tools (the agent invokes these for hot ops)
+
+Same pattern as `setup.sh` / `doctor.sh` — the skill ships a script, the agent runs it via `bash $SKILL_ROOT/scripts/<name>`, you get deterministic JSON. No re-derivation per session.
+
+| Command | Returns |
+|---|---|
+| `wallet.sh info` | `{address, alias, chain, env, created}` (idempotent get-or-create) |
+| `wallet.sh balance` | `{usdc:{amount,raw,contract,sdkAgrees}, usdxm, native}` (USDC verified on-chain) |
+| `wallet.sh send <to> <token> <amount>` | `{hash, explorer, ...}` |
+| `wallet.sh transfers [limit]` | `{count, source, transfers:[…]}` |
+| `wallet.sh sign "<message>"` | `{message, signature, signer}` |
+| `x402.sh probe <url>` | `{isX402, x402Version, network, maxAmountRequired, maxAmountUSD, payTo, …}` (no spend) |
+| `x402.sh pay <url> [--max <raw>]` | `{paidStatus, paidBody, receipt, paymentRequired}` |
+
+Stdout is pure JSON. Stderr carries SDK chatter and confirmations. First run installs the runtime under `~/.cache/crossmint-skill/` (~30s); after that, every call is fast.
+
 ## What's inside
 
 ```
@@ -76,7 +92,10 @@ plugins/crossmint/skills/crossmint/
 ├── SKILL.md                          # the router + Step 0 setup wizard
 ├── scripts/
 │   ├── setup.sh                      # writes ~/.config/crossmint/.env (API key + signer secret)
-│   └── doctor.sh                     # verifies config + API key reachability
+│   ├── doctor.sh                     # verifies config + API key reachability
+│   ├── wallet.sh                     # info | balance | send | transfers | sign
+│   ├── x402.sh                       # probe | pay
+│   └── lib/                          # runtime.sh + Node engines for each subcommand
 ├── references/                       # all 34 official docs, semantic filenames
 │   ├── INDEX.md                      # one-file lookup over every reference
 │   ├── capabilities.md               # AUTO / WITH-USER / CODE-GEN per common ask

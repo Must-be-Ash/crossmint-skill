@@ -164,6 +164,20 @@ Terse request/response refs. Read the conceptual guide first, then come here for
 | `scripts/setup.sh` | First-run wizard. Writes `~/.config/crossmint/.env` with API key + auto-generated signer secret. Required before any AUTO action |
 | `scripts/doctor.sh` | Verifies the env file is valid and the API key reaches the configured environment |
 
+## Action scripts — prefer these over inline Node (in `scripts/`)
+
+> Same pattern as setup/doctor. Each emits pure JSON on stdout (pipe to `jq`); SDK chatter and confirmations go to stderr. Resolve `SKILL_ROOT=$(find "${HOME}/.claude" -type d -path '*/skills/crossmint' | head -1)` once per session.
+
+| Command | What it does |
+|---|---|
+| `wallet.sh info` | Get-or-create the default wallet, return `{address, alias, chain, env, created}` |
+| `wallet.sh balance` | USDC (verified on-chain via the canonical contract — never fabricates 0), USDXM, native ETH |
+| `wallet.sh send <recipient> <token> <amount>` | Confirms via stderr, executes `wallet.send`. Returns `{hash, explorer, ...}` |
+| `wallet.sh transfers [limit]` | Recent transfers (default 10, USDC, status=successful) |
+| `wallet.sh sign <message>` | EIP-191 sign |
+| `x402.sh probe <url>` | No-payment probe; parses 402 body. Returns `{isX402, x402Version, network, maxAmountRequired, maxAmountUSD, payTo, raw}` |
+| `x402.sh pay <url> [--max <raw>]` | Probe + sign + retry. Handles both v1 and v2 schemes. Returns `{paidStatus, paidBody, receipt, paymentRequired}` |
+
 ---
 
 ## Quick task → file shortcuts

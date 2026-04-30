@@ -23,17 +23,18 @@
 
 | Ask | Mode | What the agent does | What the user does |
 |---|---|---|---|
-| "What's your wallet?", "do you have a wallet?", "show me your wallet" | AUTO | Run the **get-or-create** snippet at the top of `assets/recipes-autonomous.md`. SDK's `wallets.getWallet("evm:alias:claude-agent-wallet", { chain })` with `createWallet` fallback. **Do NOT** hit `GET /unstable/agents` or `GET /api/2025-06-09/wallets` — those are wrong for this question | Nothing |
-| "Create a server agent wallet" (for the agent itself) | AUTO | Creates a wallet via the wallets SDK with the env signer secret as root | Nothing — Crossmint API key is enough |
-| "Check my wallet balance" | AUTO | `wallet.balances(["usdc","usdxm"])` via SDK or `GET /balances?tokens=...` (recipe in `assets/recipes-autonomous.md`) | Nothing |
-| "Fund my STAGING wallet" | AUTO | `wallet.stagingFund(amount)` (USDXM faucet) | Nothing |
-| "Send USDC to 0x…" | AUTO (with confirmation) | `wallet.send(recipient, "usdc", amount)` | Confirms destination + amount |
-| "Sign this message / EIP-712 payload" | AUTO (with confirmation) | `EVMWallet.from(wallet).signMessage(...)` or `signTypedData(...)`. Read `references/wallet-actions/sign-message.md` first | Confirms what's being signed |
-| "Call this contract function" | AUTO (with confirmation) | `EVMWallet.sendTransaction({ calls })` per `references/wallet-actions/send-transaction.md` | Confirms the call |
-| "List my recent transfers" | AUTO | `wallet.transfers({ tokens })` or REST `/transfers` | Nothing |
+| "What's your wallet?", "do you have a wallet?", "show me your wallet" | AUTO | **`bash $SKILL_ROOT/scripts/wallet.sh info`** — idempotent get-or-create CLI. **Do NOT** hit `GET /unstable/agents` or `GET /api/2025-06-09/wallets` | Nothing |
+| "Create a server agent wallet" (for the agent itself) | AUTO | Same — `wallet.sh info` creates if missing, returns existing if present | Nothing |
+| "Check my wallet balance" | AUTO | **`bash $SKILL_ROOT/scripts/wallet.sh balance`** — USDC verified on-chain (no fabricated 0s), USDXM via SDK, native ETH | Nothing |
+| "Fund my STAGING wallet" | WITH-USER | For x402/USDC: tell user to use [faucet.circle.com](https://faucet.circle.com/) (Base Sepolia, no auth). For USDXM-only Crossmint demos: `wallet.stagingFund(N)` SDK call | Pastes the wallet address into the faucet |
+| "Send USDC to 0x…" | AUTO (with confirmation) | **`bash $SKILL_ROOT/scripts/wallet.sh send <recipient> usdc <amount>`** — confirms the action via stderr | Confirms destination + amount |
+| "Sign this plain message" (EIP-191) | AUTO (with confirmation) | **`bash $SKILL_ROOT/scripts/wallet.sh sign "<message>"`** | Confirms what's being signed |
+| "Sign EIP-712 typed data" | AUTO (with confirmation) | Inline Node — `EVMWallet.from(wallet).signTypedData(...)`. Read `references/wallet-actions/sign-message.md` first. Script doesn't cover typed-data yet | Confirms |
+| "Call this contract function" | AUTO (with confirmation) | Inline Node — `EVMWallet.sendTransaction({ calls })` per `references/wallet-actions/send-transaction.md` | Confirms the call |
+| "List my recent transfers" | AUTO | **`bash $SKILL_ROOT/scripts/wallet.sh transfers [limit]`** — defaults to USDC + status=successful | Nothing |
 | "Add another signer to my wallet" | AUTO or WITH-USER (depends on recovery) | `wallet.addSigner({...}, { prepareOnly })`; user approves via OTP if recovery is email/phone | OTP if user-recovery |
-| "Pay this x402 endpoint" | AUTO | Wires `@x402/core` + `wrapFetchWithPayment`, submits the payment | Confirms first call (it spends real USDC) |
-| "Pay this MPP endpoint" | AUTO | Same with `mppx/client` | Confirms |
+| "Pay this x402 endpoint" | AUTO (with confirmation) | **`bash $SKILL_ROOT/scripts/x402.sh probe <url>`** to read requirements, confirm, then **`bash $SKILL_ROOT/scripts/x402.sh pay <url> [--max <raw>]`**. Handles v1+v2, decodes the receipt | Confirms amount + network |
+| "Pay this MPP endpoint" | AUTO | Inline Node with `mppx/client` per `references/mpp.md`. No proxy script yet | Confirms |
 | "Create a user wallet for my app's end users" | CODE-GEN | Writes the React `CrossmintWalletProvider` + auth setup | Runs the app |
 | "Authorize my server agent on a user's wallet" | WITH-USER + CODE-GEN | Writes the `addSigner({ prepareOnly: true })` server action and the client approval handler | The end user (not the developer) approves with email code |
 | "Onramp USDC to my wallet" | WITH-USER | Generates the onramp link / mounts the component | Completes the card payment in browser |
