@@ -9,6 +9,7 @@
 | File | Read when |
 |---|---|
 | `capabilities.md` | User asks "can you create a wallet / virtual card / pay an endpoint?" — gives you the AUTO / WITH-USER / CODE-GEN mode + next step |
+| `funding-staging-wallets.md` | Wallet balance is 0 OR user asks how to fund. Picks USDC vs USDXM by what the wallet will *do* (x402 / Worldstore / commerce → USDC via Circle faucet; self-contained demo → `wallet.stagingFund` / USDXM) |
 
 ## Conceptual / start-here
 

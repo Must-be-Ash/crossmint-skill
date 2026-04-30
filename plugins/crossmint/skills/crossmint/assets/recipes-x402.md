@@ -5,8 +5,10 @@
 ## Prerequisites
 
 Both flows assume:
-- A Crossmint EVM wallet on Base with USDC (`references/stablecoin-wallets-quickstart.md`)
+- A Crossmint EVM wallet on Base with **USDC** (not USDXM — no x402 endpoint accepts USDXM)
 - The agent is authorized as a signer on the wallet (`references/authorize-agent.md`)
+
+**Funding on staging:** the wallet needs base-sepolia USDC. Tell the user to grab some from [faucet.circle.com](https://faucet.circle.com/) — paste the wallet address, pick **Base Sepolia**, request. No login. See `references/funding-staging-wallets.md` for the per-use-case fund decision.
 
 ---
 

@@ -94,7 +94,8 @@ After resolving mode, drill into the right reference. Multi-intent requests read
 | "list NFTs", "wallet NFT balances" | `references/wallet-actions/check-balances.md` (NFT Balances tab) |
 | "frictionless on-device signing", "no OTP for signing", "device signer + server-created wallet" | `references/server-wallet-with-device-signer.md` |
 | "configure CrossmintProvider / AuthProvider / WalletProvider props" | `references/react-providers.md` |
-| "x402", "402 payment", "pay-per-call API" | `references/x402.md` |
+| "x402", "402 payment", "pay-per-call API" | `references/x402.md` (and `references/funding-staging-wallets.md` if balance is 0 — x402 needs **USDC**, not USDXM) |
+| "fund my wallet", "I have no USDC", "wallet is empty" | `references/funding-staging-wallets.md` |
 | "MPP", "machine payment protocol" | `references/mpp.md` |
 | "buy on Amazon / Shopify", "ship a product", "Worldstore", "flights" | `references/inventory.md` |
 | "browser checkout", "fill a website checkout", "Stagehand", "Browser Use" | `references/browser-checkout.md` |
@@ -162,6 +163,8 @@ These are the bugs that the agent has actually hit. Trust the references, don't 
 6. **For verbs on an existing wallet** (transfer, balance, sign message, send transaction, list transfers, add signers), read the matching file in `references/wallet-actions/` — every guide ships both SDK and REST shapes.
 
 7. **The "under construction" `references/server-agent-wallets.md` is not the source of truth.** `references/server-signer.md` is. Always read server-signer first when the user wants an autonomous wallet.
+
+8. **USDXM ≠ USDC. Pick the right one.** `wallet.stagingFund(amount)` mints USDXM (Crossmint's testnet token). USDXM is fine for self-contained Crossmint demos but **no live x402 / MPP / Worldstore endpoint accepts it**. For any flow that touches an external endpoint on staging, fund with **base-sepolia USDC** via [Circle's faucet](https://faucet.circle.com/) — no auth, no captcha, just paste the address. Read `references/funding-staging-wallets.md` for the per-use-case fund decision and the verbatim instruction the agent should give the user.
 
 ## What this skill is NOT for
 

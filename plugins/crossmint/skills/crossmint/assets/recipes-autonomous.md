@@ -174,9 +174,19 @@ EOF
 
 > Source: `references/wallet-actions/check-balances.md`. No mutation — safe to run without confirmation.
 
-### Fund a STAGING wallet with USDXM (testnet only)
+### Funding a staging wallet — pick by use case
 
-USDXM is Crossmint's staging stablecoin. The SDK exposes `wallet.stagingFund(amount)` for self-funding in test environments. **Production wallets cannot use this** — you fund those via real onramps (`references/onramp.md`).
+**Decision tree** (full table in `references/funding-staging-wallets.md`):
+
+- Will the wallet pay an **x402 / MPP / Worldstore** endpoint, or test real-USDC code paths? → fund with **base-sepolia USDC** via [Circle's faucet](https://faucet.circle.com/). No auth required. Tell the user verbatim:
+  > Go to https://faucet.circle.com/ — paste this address, pick **Base Sepolia**, request USDC.
+  > Address: `0xYOUR_WALLET_ADDRESS`
+  > Tell me when it's done; I'll re-check the balance.
+- Will the wallet only move money between Crossmint wallets (self-contained demo)? → run `wallet.stagingFund(10)` to mint **USDXM** in one call. **USDXM does not work for x402.**
+
+### `wallet.stagingFund(amount)` — USDXM only, staging only
+
+Use only when you don't need an external endpoint to accept the token.
 
 ```bash
 cat > stagingFund.mjs <<'EOF'
