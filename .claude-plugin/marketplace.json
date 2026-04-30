@@ -1,0 +1,28 @@
+{
+  "name": "must-be-ash",
+  "owner": {
+    "name": "Must-be-Ash",
+    "url": "https://github.com/Must-be-Ash"
+  },
+  "plugins": [
+    {
+      "name": "crossmint",
+      "source": "./plugins/crossmint",
+      "description": "AI-first knowledge skill for Crossmint's agent payments stack. Routes the agent to the right doc for cards (virtual cards, agentic enrollment, browser checkout), stablecoin wallets (user wallets, server agent wallets, signer authorization), x402 and MPP paid endpoints, and Worldstore commerce (Amazon, Shopify, flights). Ships all 34 official docs as references plus copy-pasteable curl/Node recipes. No invented APIs.",
+      "version": "0.1.0",
+      "category": "agents-and-skills",
+      "keywords": [
+        "crossmint",
+        "agent-payments",
+        "virtual-cards",
+        "stablecoin-wallets",
+        "x402",
+        "mpp",
+        "worldstore",
+        "usdc",
+        "base",
+        "agentic-commerce"
+      ]
+    }
+  ]
+}
