@@ -10,82 +10,84 @@ Every snippet starts with this. The agent runs it via Bash, the env vars become 
 set -a
 source "${HOME}/.config/crossmint/.env"
 set +a
-# Now $CROSSMINT_API_KEY, $CROSSMINT_SIGNER_SECRET, $CROSSMINT_ENV, $CROSSMINT_API_HOST are set.
+# After sourcing the following are set (whichever were configured in setup):
+#   $CROSSMINT_SERVER_API_KEY  — wallets, x402, MPP, Worldstore, autonomous flows
+#   $CROSSMINT_CLIENT_API_KEY  — cards stack: agents, payment methods, virtual cards
+#                                (also needs Authorization: Bearer <user JWT> at call time)
+#   $CROSSMINT_API_KEY         — backward-compat alias; points at whichever was set first
+#   $CROSSMINT_SIGNER_SECRET   — server-signer master (xmsk1_...)
+#   $CROSSMINT_ENV             — staging | production
+#   $CROSSMINT_API_HOST        — derived from env
+#   $WALLET_ALIAS              — default agent wallet alias for get-or-create
 ```
 
 Or one-shot per command:
 
 ```bash
-( set -a; source "${HOME}/.config/crossmint/.env"; set +a; <command using $CROSSMINT_API_KEY> )
+( set -a; source "${HOME}/.config/crossmint/.env"; set +a; <command> )
 ```
+
+**Pick the right key for the call:**
+- SDK calls (`@crossmint/wallets-sdk`), `/api/2025-06-09/wallets/...`, `/api/2025-06-09/wallets/.../transactions`, Worldstore `/api/2022-06-09/orders` → `CROSSMINT_SERVER_API_KEY`
+- Cards stack (`/api/unstable/agents`, `/api/unstable/payment-methods`, `/api/unstable/order-intents`, `/api/unstable/agentic-enrollment`) → `CROSSMINT_CLIENT_API_KEY` + a user JWT
 
 ---
 
-## Management API (read-only — safe to call without confirmation)
+## Cards-stack Management API (`/api/unstable/*`)
 
-### List my agents
+> **Use `CROSSMINT_CLIENT_API_KEY`, NOT the server key.** Most calls also need `Authorization: Bearer <user JWT>` (Stytch / Auth0 / Crossmint Auth). If the user doesn't have a JWT yet, point them at the auth-provider setup in `references/register-agent.md`.
+
+### Read-only (safe to call without confirmation)
+
 ```bash
-curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+# List agents
+curl -s -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/agents" | jq .
-```
 
-### List my saved payment methods
-```bash
-curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+# List saved payment methods
+curl -s -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/payment-methods" | jq .
-```
 
-### List my virtual cards (order intents)
-```bash
-curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+# List virtual cards (order intents)
+curl -s -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/order-intents" | jq .
-```
 
-### Get a specific virtual card by id
-```bash
-curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+# Get a specific virtual card by id
+curl -s -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/order-intents/${ORDER_INTENT_ID}" | jq .
-```
 
-### Get enrollment status of a payment method
-```bash
-curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+# Get enrollment status of a payment method
+curl -s -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/payment-methods/${PAYMENT_METHOD_ID}/agentic-enrollment" | jq .
 ```
 
----
+### Mutations (confirm with the user first)
 
-## Management API (mutations — confirm with the user first)
-
-### Create a new agent
 ```bash
+# Create a new agent
 curl -s -X POST \
-  -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+  -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" \
+  -H "Authorization: Bearer ${USER_JWT}" \
   -H "Content-Type: application/json" \
   "${CROSSMINT_API_HOST}/api/unstable/agents" \
   -d '{"metadata":{"name":"Claude session agent","description":"Created from the crossmint skill"}}' | jq .
-```
 
-### Delete an agent
-```bash
+# Delete an agent
 curl -s -X DELETE \
-  -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+  -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/agents/${AGENT_ID}" | jq .
-```
 
-### Delete a payment method
-```bash
+# Delete a payment method
 curl -s -X DELETE \
-  -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+  -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" -H "Authorization: Bearer ${USER_JWT}" \
   "${CROSSMINT_API_HOST}/api/unstable/payment-methods/${PAYMENT_METHOD_ID}" | jq .
-```
 
-### Get virtual card credentials (merchant-scoped — needed to actually use the card)
-> Source: `references/api/get-virtual-card-credentials.md`. Required scope: `order-intents.credentials`. The order intent must be in `phase: "active"`.
-
-```bash
+# Get virtual card credentials (merchant-scoped — needed to actually use the card)
+# Source: references/api/get-virtual-card-credentials.md
+# Required scope: order-intents.credentials. The order intent must be in phase: "active".
 curl -s -X POST \
-  -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+  -H "X-API-KEY: ${CROSSMINT_CLIENT_API_KEY}" \
+  -H "Authorization: Bearer ${USER_JWT}" \
   -H "Content-Type: application/json" \
   "${CROSSMINT_API_HOST}/api/unstable/order-intents/${ORDER_INTENT_ID}/credentials" \
   -d '{"merchant":{"name":"Whole Foods","url":"https://www.wholefoodsmarket.com","countryCode":"US"}}' | jq .
@@ -111,7 +113,7 @@ mkdir -p /tmp/crossmint-scratch && cd /tmp/crossmint-scratch
 cat > my-wallet.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
 
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 
 const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
@@ -149,7 +151,7 @@ npm i @crossmint/wallets-sdk >/dev/null 2>&1
 cat > create-server-wallet.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
 
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 
 const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
@@ -176,7 +178,7 @@ EOF
 cat > get-server-wallet.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
 
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 
 const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
@@ -198,7 +200,7 @@ EOF
 cat > balance.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
 
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 
 const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
@@ -233,7 +235,7 @@ Use only when you don't need an external endpoint to accept the token.
 ```bash
 cat > stagingFund.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 const wallet = await wallets.getWallet(
   `evm:alias:${process.env.WALLET_ALIAS}`,
@@ -257,7 +259,7 @@ EOF
 cat > send.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets } from "@crossmint/wallets-sdk";
 
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 
 const chain = process.env.CROSSMINT_ENV === "production" ? "base" : "base-sepolia";
@@ -289,7 +291,7 @@ EOF
 ```bash
 cat > sign-typed.mjs <<'EOF'
 import { createCrossmint, CrossmintWallets, EVMWallet } from "@crossmint/wallets-sdk";
-const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_API_KEY });
+const crossmint = createCrossmint({ apiKey: process.env.CROSSMINT_SERVER_API_KEY });
 const wallets = CrossmintWallets.from(crossmint);
 const wallet = await wallets.getWallet(
   `evm:alias:${process.env.WALLET_ALIAS}`,
@@ -313,7 +315,7 @@ EOF
 
 ```bash
 ( set -a; source "${HOME}/.config/crossmint/.env"; set +a;
-curl -s -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+curl -s -H "X-API-KEY: ${CROSSMINT_SERVER_API_KEY}" \
   "${CROSSMINT_API_HOST}/api/unstable/wallets/${WALLET_LOCATOR}/transfers?chain=base-sepolia&tokens=usdc&limit=10" \
   | jq . )
 ```
@@ -351,7 +353,7 @@ Source: `references/inventory.md`. Confirm recipient + ASIN + amount with the us
 ```bash
 ( set -a; source "${HOME}/.config/crossmint/.env"; set +a;
 curl -s -X POST \
-  -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
+  -H "X-API-KEY: ${CROSSMINT_SERVER_API_KEY}" \
   -H "Content-Type: application/json" \
   "${CROSSMINT_API_HOST}/api/2022-06-09/orders" \
   -d '{

@@ -4,12 +4,15 @@
 
 ## Environment
 
+The cards stack uses the **client-side** Crossmint key plus a **user JWT** (Stytch / Auth0 / Crossmint Auth). Both are set up by `scripts/setup.sh` (which saves `CROSSMINT_CLIENT_API_KEY`); the JWT comes from your auth provider at request time.
+
 ```bash
-CROSSMINT_API_KEY=...                  # client-side key from staging.crossmint.com/console
+CROSSMINT_CLIENT_API_KEY=ck_staging_...     # from staging.crossmint.com/console (client-side)
 CROSSMINT_BASE_URL=https://staging.crossmint.com/api/unstable
+USER_JWT=...                                 # session JWT for the end user
 ```
 
-For production, swap `staging.crossmint.com` → `www.crossmint.com` and rotate to a production key with the right scopes (see `references/moving-to-production.md`).
+For production, swap `staging.crossmint.com` → `www.crossmint.com` and rotate to a production client key with the right scopes (see `references/moving-to-production.md`).
 
 ---
 
@@ -26,7 +29,7 @@ const response = await fetch(`${BASE_URL}/agents`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "X-API-KEY": process.env.CROSSMINT_API_KEY!,
+    "X-API-KEY": process.env.CROSSMINT_CLIENT_API_KEY!,
     Authorization: `Bearer ${jwt}`,                // user's session JWT (Stytch / Auth0 / etc.)
   },
   body: JSON.stringify({
@@ -97,7 +100,7 @@ const response = await fetch(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-KEY": process.env.CROSSMINT_API_KEY!,
+      "X-API-KEY": process.env.CROSSMINT_CLIENT_API_KEY!,
       Authorization: `Bearer ${jwt}`,
     },
     body: JSON.stringify({
@@ -198,7 +201,7 @@ const response = await fetch(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-KEY": process.env.CROSSMINT_API_KEY!,
+      "X-API-KEY": process.env.CROSSMINT_CLIENT_API_KEY!,
       Authorization: `Bearer ${jwt}`,
     },
     body: JSON.stringify({
@@ -225,7 +228,7 @@ Required scope: `order-intents.credentials`.
 ```bash
 curl -X POST "$CROSSMINT_BASE_URL/agents" \
   -H "Content-Type: application/json" \
-  -H "X-API-KEY: $CROSSMINT_API_KEY" \
+  -H "X-API-KEY: $CROSSMINT_CLIENT_API_KEY" \
   -H "Authorization: Bearer $USER_JWT" \
   -d '{"metadata":{"name":"Virtual Card Agent","description":"Default agent"}}'
 ```
@@ -234,7 +237,7 @@ curl -X POST "$CROSSMINT_BASE_URL/agents" \
 ```bash
 curl -X POST "$CROSSMINT_BASE_URL/order-intents/$ORDER_INTENT_ID/credentials" \
   -H "Content-Type: application/json" \
-  -H "X-API-KEY: $CROSSMINT_API_KEY" \
+  -H "X-API-KEY: $CROSSMINT_CLIENT_API_KEY" \
   -H "Authorization: Bearer $USER_JWT" \
   -d '{"merchant":{"name":"Whole Foods","url":"https://www.wholefoodsmarket.com","countryCode":"US"}}'
 ```

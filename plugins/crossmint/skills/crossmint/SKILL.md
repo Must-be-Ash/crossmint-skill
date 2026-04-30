@@ -26,22 +26,36 @@ The agent runs API calls using credentials at `~/.config/crossmint/.env`. **Dete
 
 When setup is needed AND the user is asking for something AUTO/WITH-USER:
 
-1. Tell them: "I can do that, but I need a Crossmint API key first. Get one (free) at https://staging.crossmint.com/console/projects/apiKeys. Pick the key type that matches what you want to do — leave all scopes enabled either way. Paste it here when ready, or say 'skip' if you only want code-gen help."
+1. Tell them: **"I can do that, but I need Crossmint API keys first. Get them (free) at https://staging.crossmint.com/console/projects/apiKeys."** Then ask them to paste **one or both**:
 
-   **Key type by task:**
-   - **Wallet creation, x402 / MPP payments, Worldstore orders, autonomous spending** → **server-side** key (`sk_staging_*` / `sk_production_*`)
-   - **Cards: register agent, save card, enroll, virtual card credentials** → **client-side** key (`ck_staging_*` / `ck_production_*`) used with a user JWT
-   - Unsure? Default to server-side; it covers the most common autonomous flows. You can re-run setup later with `--force` to swap.
+   - **Server-side key (`sk_staging_*`)** — required for wallets, x402, MPP, Worldstore, all autonomous flows.
+   - **Client-side key (`ck_staging_*`)** — required for cards stack: agents, payment methods, virtual cards (issuance + listing + credentials), agentic enrollments. Most cards calls also need a user JWT (Stytch / Auth0 / Crossmint Auth).
+
+   Recommend grabbing **both** up front so you don't have to re-run setup later. If they only know they need one, default to whichever matches the immediate task.
 2. **Locate the scripts.** When the skill is installed via `npx skills add`, scripts live somewhere under `~/.claude/plugins/`. Resolve the path once:
    ```bash
    SKILL_ROOT=$(find "${HOME}/.claude" -type d -path '*/skills/crossmint' 2>/dev/null | head -1)
    echo "SKILL_ROOT=${SKILL_ROOT}"
    ```
-3. When they paste a key (looks like `sk_staging_...` or `sk_production_...`), run:
+3. Run setup with whatever they provided:
    ```bash
-   bash "${SKILL_ROOT}/scripts/setup.sh" --api-key "<key>" --env staging
+   # Both keys (recommended)
+   bash "${SKILL_ROOT}/scripts/setup.sh" --server-key sk_... --client-key ck_... --env staging
+
+   # Only one (legacy --api-key auto-routes by prefix)
+   bash "${SKILL_ROOT}/scripts/setup.sh" --api-key "<sk_... or ck_...>" --env staging
    ```
-   For production keys, pass `--env production`. The script auto-generates a `CROSSMINT_SIGNER_SECRET` (xmsk1_…) and writes everything to `~/.config/crossmint/.env` with mode 600.
+   For production, pass `--env production`. The script auto-generates a `CROSSMINT_SIGNER_SECRET` (xmsk1_…) and writes everything to `~/.config/crossmint/.env` with mode 600.
+
+   To **add the missing key later** (e.g. user started with server, now needs client for cards), re-run with both keys + `--force`:
+   ```bash
+   bash "${SKILL_ROOT}/scripts/setup.sh" \
+     --server-key "$(grep ^CROSSMINT_SERVER_API_KEY ~/.config/crossmint/.env | cut -d= -f2-)" \
+     --client-key ck_... \
+     --signer-secret "$(grep ^CROSSMINT_SIGNER_SECRET ~/.config/crossmint/.env | cut -d= -f2-)" \
+     --env staging --force
+   ```
+   (The `--signer-secret` reuse is critical — otherwise you'd derive a new wallet address.)
 4. Verify the key works:
    ```bash
    bash "${SKILL_ROOT}/scripts/doctor.sh"
@@ -155,7 +169,20 @@ These are the bugs that the agent has actually hit. Trust the references, don't 
 
 2. **Retrieve a server wallet by `evm:alias:<your-alias>`.** Then call `wallet.useSigner({ type: "server", secret })` before any signing op. Skipping `useSigner` is the second-most-common bug.
 
-3. **Server-side key ≠ client-side key.** The CRUD endpoints under `/api/unstable/*` (agents, payment methods, virtual cards) generally need a **client** key + user JWT. The wallets API under `/api/2025-06-09/wallets` and Worldstore under `/api/2022-06-09/orders` need a **server** key. `scripts/doctor.sh` auto-detects the key prefix and probes the right endpoint.
+3. **Server-side key ≠ client-side key — pick the right env var per call.** The setup wizard saves both `CROSSMINT_SERVER_API_KEY` and `CROSSMINT_CLIENT_API_KEY` to `~/.config/crossmint/.env`. Always read the right one for the call:
+
+   | Call surface | Env var | Notes |
+   |---|---|---|
+   | `@crossmint/wallets-sdk` (createWallet, getWallet, send, balances, signTypedData, x402, …) | `CROSSMINT_SERVER_API_KEY` | + `CROSSMINT_SIGNER_SECRET` |
+   | `POST /api/2025-06-09/wallets/...` and `/transactions` | `CROSSMINT_SERVER_API_KEY` | |
+   | Worldstore: `POST /api/2022-06-09/orders` | `CROSSMINT_SERVER_API_KEY` | |
+   | `GET/POST /api/unstable/agents` | `CROSSMINT_CLIENT_API_KEY` | + `Authorization: Bearer <user JWT>` |
+   | `GET/POST /api/unstable/payment-methods` (and `/agentic-enrollment`) | `CROSSMINT_CLIENT_API_KEY` | + user JWT |
+   | `GET/POST /api/unstable/order-intents` (virtual cards: list, issue, credentials) | `CROSSMINT_CLIENT_API_KEY` | + user JWT |
+
+   The legacy `CROSSMINT_API_KEY` env var still exists in the file for backward compat with older recipes; it points at whichever was provided first. **Prefer the explicit `*_SERVER_API_KEY` / `*_CLIENT_API_KEY` names** in any new code you write.
+
+   `scripts/doctor.sh` probes both keys against their canonical endpoints and reports which work.
 
 4. **Server-signer wallets cannot be created via REST alone.** The secret stays on your server; the SDK does HKDF derivation locally to compute the address. If the user insists on REST, switch to an `external-wallet` admin signer (see `references/api/create-wallet.md`) — they manage the keys.
 

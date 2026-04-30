@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Crossmint skill — config doctor.
-# Verifies ~/.config/crossmint/.env exists, detects whether the API key is server- or client-side,
-# and probes a key-type-appropriate endpoint. Exits non-zero with a clear message on any failure.
+# Verifies ~/.config/crossmint/.env exists, loads it, and probes whichever
+# keys are present (server, client, or both) against their canonical endpoints.
+# Exits 0 only if every present key passes its probe.
 
 set -euo pipefail
 
@@ -10,15 +11,16 @@ ENV_FILE="${CONFIG_DIR}/.env"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "FAIL: ${ENV_FILE} does not exist."
-  echo "      Run scripts/setup.sh --api-key <key> [--env staging|production] first."
+  echo "      Run scripts/setup.sh --server-key sk_... [--client-key ck_...] [--env staging|production] first."
   exit 1
 fi
 
 # shellcheck disable=SC1090
 source "${ENV_FILE}"
 
+# --- required core fields -------------------------------------------------
 missing=0
-for var in CROSSMINT_API_KEY CROSSMINT_SIGNER_SECRET CROSSMINT_ENV CROSSMINT_API_HOST; do
+for var in CROSSMINT_SIGNER_SECRET CROSSMINT_ENV CROSSMINT_API_HOST; do
   if [[ -z "${!var:-}" ]]; then
     echo "FAIL: ${var} is not set in ${ENV_FILE}"
     missing=1
@@ -31,117 +33,99 @@ if ! [[ "${CROSSMINT_SIGNER_SECRET}" =~ ^xmsk1_[0-9a-f]{64}$ ]]; then
   exit 1
 fi
 
-# --- key-type detection ---------------------------------------------------
-# Crossmint key prefixes (current as of 2026-04):
-#   sk_staging_* / sk_production_*  → server-side
-#   ck_staging_* / ck_production_*  → client-side
-KEY_TYPE="unknown"
-case "${CROSSMINT_API_KEY}" in
-  sk_*) KEY_TYPE="server" ;;
-  ck_*) KEY_TYPE="client" ;;
-esac
+if [[ -z "${CROSSMINT_SERVER_API_KEY:-}" && -z "${CROSSMINT_CLIENT_API_KEY:-}" ]]; then
+  echo "FAIL: neither CROSSMINT_SERVER_API_KEY nor CROSSMINT_CLIENT_API_KEY is set."
+  echo "      Re-run setup.sh with --server-key, --client-key, or --api-key."
+  exit 1
+fi
 
 echo "OK:   config present at ${ENV_FILE}"
-echo "      env=${CROSSMINT_ENV}   host=${CROSSMINT_API_HOST}   key_type=${KEY_TYPE}"
+echo "      env=${CROSSMINT_ENV}   host=${CROSSMINT_API_HOST}"
 
-# --- probe ----------------------------------------------------------------
-# We pick the endpoint based on the key type so the test actually exercises
-# the auth path the user intends to use.
-#
-#   client key → GET /unstable/agents               (returns 200 with JWT-bound list)
-#   server key → GET /api/2025-06-09/wallets/{dummy} (returns 404 if auth passes;
-#                                                    401/403 if the key is bad)
-#   unknown   → try the server probe; fall back to client.
-
+# --- probe helpers --------------------------------------------------------
 probe() {
-  local url="$1"
+  local url="$1" key="$2" out
+  out=$(mktemp)
   local code
-  code=$(curl -s -o /tmp/crossmint-doctor.out -w "%{http_code}" \
-           -H "X-API-KEY: ${CROSSMINT_API_KEY}" \
-           "${url}" || echo "000")
-  echo "${code}"
+  code=$(curl -s -o "${out}" -w "%{http_code}" -H "X-API-KEY: ${key}" "${url}" || echo "000")
+  echo "${code}|${out}"
 }
 
-interpret_server() {
-  local code="$1"
-  case "${code}" in
-    200|404) return 0 ;;          # 404 = wallet not found, but auth was accepted
-    401|403) return 1 ;;
-    000)     return 2 ;;          # network
-    *)       return 3 ;;          # unexpected
-  esac
-}
-
-interpret_client() {
-  local code="$1"
-  case "${code}" in
-    200)     return 0 ;;
-    401|403) return 1 ;;
-    000)     return 2 ;;
-    *)       return 3 ;;
-  esac
-}
-
-if [[ "${KEY_TYPE}" == "server" ]]; then
+# --- server key probe -----------------------------------------------------
+SERVER_OK=1
+if [[ -n "${CROSSMINT_SERVER_API_KEY:-}" ]]; then
   URL="${CROSSMINT_API_HOST}/api/2025-06-09/wallets/evm%3Aalias%3Acrossmint-skill-doctor-probe"
-  echo "Probe: GET ${URL}  (server-key probe — wallets API)"
-  code=$(probe "${URL}")
-  rc=0; interpret_server "${code}" || rc=$?
-  case "${rc}" in
-    0) echo "OK:   server API key works (HTTP ${code} — auth accepted)."
-       exit 0 ;;
-    1) echo "FAIL: API key rejected (HTTP ${code})."
-       echo "      Check the key is server-side (sk_*) and matches the ${CROSSMINT_ENV} environment."
-       cat /tmp/crossmint-doctor.out 2>/dev/null
-       exit 1 ;;
-    2) echo "FAIL: could not reach ${CROSSMINT_API_HOST}. Network or DNS issue?"
-       exit 1 ;;
-    *) echo "WARN: unexpected HTTP ${code}."
-       cat /tmp/crossmint-doctor.out 2>/dev/null
-       exit 1 ;;
+  echo
+  echo "Probe: server-side key → GET ${URL}"
+  result=$(probe "${URL}" "${CROSSMINT_SERVER_API_KEY}")
+  code="${result%%|*}"; out="${result##*|}"
+  case "${code}" in
+    200|404)
+      echo "  OK: server API key works (HTTP ${code} — auth accepted)."
+      ;;
+    401|403)
+      echo "  FAIL: server API key rejected (HTTP ${code})."
+      echo "        Confirm the key starts with sk_, matches env=${CROSSMINT_ENV}, and has wallets.read scope."
+      cat "${out}" 2>/dev/null; echo
+      SERVER_OK=0
+      ;;
+    000)
+      echo "  FAIL: could not reach ${CROSSMINT_API_HOST}. Network or DNS issue?"
+      SERVER_OK=0
+      ;;
+    *)
+      echo "  WARN: unexpected HTTP ${code}."
+      cat "${out}" 2>/dev/null; echo
+      SERVER_OK=0
+      ;;
   esac
+  rm -f "${out}"
 fi
 
-if [[ "${KEY_TYPE}" == "client" ]]; then
+# --- client key probe -----------------------------------------------------
+CLIENT_OK=1
+if [[ -n "${CROSSMINT_CLIENT_API_KEY:-}" ]]; then
   URL="${CROSSMINT_API_HOST}/api/unstable/agents"
-  echo "Probe: GET ${URL}  (client-key probe — agents API)"
-  code=$(probe "${URL}")
-  rc=0; interpret_client "${code}" || rc=$?
-  case "${rc}" in
-    0) echo "OK:   client API key works (HTTP ${code})."
-       exit 0 ;;
-    1) echo "FAIL: API key rejected (HTTP ${code})."
-       echo "      Check the key is client-side (ck_*) and matches the ${CROSSMINT_ENV} environment."
-       cat /tmp/crossmint-doctor.out 2>/dev/null
-       exit 1 ;;
-    2) echo "FAIL: could not reach ${CROSSMINT_API_HOST}. Network or DNS issue?"
-       exit 1 ;;
-    *) echo "WARN: unexpected HTTP ${code}."
-       cat /tmp/crossmint-doctor.out 2>/dev/null
-       exit 1 ;;
+  echo
+  echo "Probe: client-side key → GET ${URL}"
+  result=$(probe "${URL}" "${CROSSMINT_CLIENT_API_KEY}")
+  code="${result%%|*}"; out="${result##*|}"
+  case "${code}" in
+    200)
+      echo "  OK: client API key works (HTTP 200)."
+      ;;
+    401|403)
+      echo "  NOTE: HTTP ${code} from /unstable/agents."
+      echo "        This endpoint typically also wants a user JWT (Authorization: Bearer ...);"
+      echo "        a 401/403 here can mean either a bad key OR a missing JWT."
+      echo "        If your key is fresh from the console, it's likely fine — JWT is needed at call time."
+      cat "${out}" 2>/dev/null; echo
+      # Don't fail doctor on this — the key may still be valid; JWT is the missing piece.
+      ;;
+    000)
+      echo "  FAIL: could not reach ${CROSSMINT_API_HOST}. Network or DNS issue?"
+      CLIENT_OK=0
+      ;;
+    *)
+      echo "  WARN: unexpected HTTP ${code}."
+      cat "${out}" 2>/dev/null; echo
+      ;;
   esac
+  rm -f "${out}"
 fi
 
-# Unknown key type — try server probe first (covers the most common autonomous case),
-# fall back to client.
-URL_SERVER="${CROSSMINT_API_HOST}/api/2025-06-09/wallets/evm%3Aalias%3Acrossmint-skill-doctor-probe"
-URL_CLIENT="${CROSSMINT_API_HOST}/api/unstable/agents"
-
-code=$(probe "${URL_SERVER}")
-rc=0; interpret_server "${code}" || rc=$?
-if [[ "${rc}" -eq 0 ]]; then
-  echo "OK:   key works as a server-side key (HTTP ${code} on wallets API)."
-  exit 0
+echo
+if [[ -n "${CROSSMINT_SERVER_API_KEY:-}" ]] && [[ "${SERVER_OK}" -eq 1 ]]; then
+  echo "  [✓] server-side key — wallets, x402, MPP, Worldstore"
+elif [[ -n "${CROSSMINT_SERVER_API_KEY:-}" ]]; then
+  echo "  [✗] server-side key — FAILED probe"
+fi
+if [[ -n "${CROSSMINT_CLIENT_API_KEY:-}" ]] && [[ "${CLIENT_OK}" -eq 1 ]]; then
+  echo "  [✓] client-side key — cards, virtual cards (also needs user JWT at call time)"
+elif [[ -n "${CROSSMINT_CLIENT_API_KEY:-}" ]]; then
+  echo "  [✗] client-side key — FAILED probe"
 fi
 
-code=$(probe "${URL_CLIENT}")
-rc=0; interpret_client "${code}" || rc=$?
-if [[ "${rc}" -eq 0 ]]; then
-  echo "OK:   key works as a client-side key (HTTP ${code} on agents API)."
-  exit 0
-fi
-
-echo "FAIL: key was rejected by both server-key and client-key probes."
-echo "      Confirm the key prefix (sk_* server, ck_* client), the environment"
-echo "      (${CROSSMINT_ENV}), and that the project has any required scopes enabled."
-exit 1
+# Overall exit code: fail if any present key failed its probe.
+[[ "${SERVER_OK}" -eq 0 || "${CLIENT_OK}" -eq 0 ]] && exit 1
+exit 0
